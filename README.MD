@@ -5,6 +5,8 @@ This repository extends the **IETF Ephemeral Diffie-Hellman Over COSE (EDHOC)** 
 
 **EDHOC** is a very compact and lightweight authenticated DH key exchange protocol for establishing a shared secret based on ephemeral keys. It provides identity protection, perfect forward secrecy, and mutual authentication based on out-of-band established credentials. The **uOSCORE-uEDHOC** library OS-independent implementation of EDHOC, and the post-quantum version follows the same design. The library on this repo can be compiled for **Linux base OSes**  as well as RTOS environments like **Zephyr OS**. 
 
+This library has been tested on both Linux hosts and constrained embedded devices running Zephyr RTOS (nRF52840-DK). Benchmarking results for different combinations of post-quantum KEMs and post-quantum digital signature schemes are presented in the paper [“Enabling Quantum-Resistant EDHOC: Design and Performance Evaluation.”](https://ieeexplore.ieee.org/document/10937704).
+
 <!--**EDHOC** is design to be transport-independent, thoug the RFC recommends using a reliable transport mechanism, such as CoAP (Constrained Application Protocol) in reliable mode. Since PQC algorithms often lead to larger data sizes, EDHOC messages tend to grow significantly.  To ensure functionality in real-world constrained networks, CoAP messages must be fragmented using the CoAP Block-Wise Transfer mechanism ([RFC7959](https://datatracker.ietf.org/doc/html/rfc7959)). 
 
 To support this, the examples provided in this repository include the Tx/Rx EDHOC callback functions for handling message transmission and reception using CoAP with Block-Wise Transfer. The Linux example uses the libcoap library, while the Zephyr OS example utilizes the coap-client API from the Zephyr OS network subsystem.
@@ -147,6 +149,8 @@ This folder contains two examples designed to run on a **Linux** host. See the [
 - **Initiator:** PQ-EDHOC initiator running on top of a **CoAP client with Block-Wise Transfer**.
 - **Responder:** PQ-EDHOC responder running on top of a **CoAP server with Block-Wise Transfer**.
 
+## Real-World Constrained device Examples
+For details check the corresponding [README](samples/zephyr_edhoc_block_client_pq/README.MD) file.
 
 ## Tested Platforms
 This project has been successfully tested on the following platforms:

@@ -1,9 +1,9 @@
 # EDHOC Constrained Device Samples
 
 ## General
-This folder contains a samples intended to be executed on a constrained device
+This folder contains a samples intended to be executed on a constrained device running over constrained 6LowPAN network (IPv6 over BLE)
 
-* initiator - EDHOC initiator running on top of a CoAP client
+* initiator - PQ-EDHOC initiator running on top of a CoAP client with Block-Wise Transfer
 
 Tested on 
 
@@ -11,7 +11,7 @@ Tested on
 * responder - tested on Ubuntu 22.04.4 LTS with IPv6 over BLE
 
 ## Requirements
-* Zephyr OS is needed for building these samples.
+* Zephyr OS 3.4.0 is needed for building these samples.
 * A BLE board is needed for testing (Tested with nrf52840dk_nrf52840)
 * A Linux computer with BLE (Tested on Ubuntu 22.04.4 LTS)
 
@@ -54,11 +54,9 @@ echo "6" > sudo /sys/kernel/debug/bluetooth/hci0/conn_min_interval
 echo "7" > sudo /sys/kernel/debug/bluetooth/hci0/conn_max_interval 
 ```
 
-
-
 ### Configure and run the linux base PQ-EDHOC responder
 * The Linux host example is in the folder `samples/linux_edhoc_block_pq/responder` 
-- Configure the PQC KEM and PQC digital signature you want to run in `makefile_config.mk`
+- Configure the PQC KEM and PQC digital signature you want to run in `makefile_config.mk` and the appropiate criptography engines following the process on the corresponding README.
 - Set to use IPV6 address by defin the follows at the start of `samples/linux_edhoc_block_pq/responder/src/main.cpp` file:
 ```
 #define USE_IPV6
@@ -71,13 +69,62 @@ make
 ``` 
 ### Configure and run the zephyr OS base PQ-EDHOC initiator
 * The zephyr OS example example is inside this folder `samples/zephyr_edhoc_block_client_pq/initiator_test_benchmark` 
+* Configuration
+Cryptographic engines
+```bash
+CRYPTO_ENGINE += -DPQM4
+CRYPTO_ENGINE += -DTINYCRYPT
+CRYPTO_ENGINE += -DCOMPACT25519
+```
+Select PQC algorithms for KEMs and PQC digital signature
+```bash
+# Select the PQ KEM algorithm to be used, 
+FEATURES += -DKYBER_LEVEL_1
+
+# Select the PQ Signature algorithm to be used
+FEATURES += -DFALCON_LEVEL_1
+#FEATURES += -DDILITHIUM_LEVEL_2
+#FEATURES += -DHAWK_LEVEL_1
+#FEATURES += -DHAETAE_LEVEL_2
+```
 * connect the BLE board to the computer used for building the samples over USB.
 * build and flash the sample:
 ```bash
-west build -b=nrf52840dk_nrf52840
+west build -b nrf52840dk_nrf52840 -- -DUSE_X5T=1 -DUSE_SUIT_7=ON 
 west flash
 ```
-Optionally the board can be connected to a serial terminal for observing status messages.
+FLAGS
+- Select X5T credential type with this flag
+```bash
+-DUSE_X5T=1 
+```
+- Select the cipher suit under test and the corresponding features in the makefile_config.mk
+Cipher suit 2 ```-DUSE_SUIT_2=ON``` with
+```
+FEATURES += -DDH
+```
+Cipher suit 7 ```-DUSE_SUIT_7=ON``` with 
+```
+FEATURES += -DKYBER_LEVEL_1
+FEATURES += -DFALCON_LEVEL_1
+```
+Cipher suit 12 ```-DUSE_SUIT_12=ON``` with
+```
+FEATURES += -DKYBER_LEVEL_1
+FEATURES += -DDILITHIUM_LEVEL_2
+```
+Cipher suit 14 ```-DUSE_SUIT_14=ON``` with
+```
+FEATURES += -DKYBER_LEVEL_1
+FEATURES += -DHAWK_LEVEL_1
+```
+Cipher suit 15 ```-DUSE_SUIT_15=ON``` with
+```
+FEATURES += -DKYBER_LEVEL_1
+FEATURES += -DHAETAE_LEVEL_2
+```
+
+* Optionally the board can be connected to a serial terminal for observing status messages.
 
 * Find the Bluethot address or your board by ussing
 ```
