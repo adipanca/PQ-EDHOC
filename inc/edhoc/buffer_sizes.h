@@ -14,7 +14,7 @@
 	#define G_Y_SIZE OQS_KEM_hqc_128_length_ciphertext
 	#define G_X_SIZE OQS_KEM_hqc_128_length_public_key
 	#define G_I_SIZE OQS_KEM_hqc_128_length_secret_key
-	#define ECDH_SECRET_SIZE 64
+	#define KEM_SECRET_SIZE 64
 #endif
 
 #ifdef BIKE_LEVEL_1
@@ -107,7 +107,7 @@
 	#define G_Y_SIZE 4433
 	#define G_X_SIZE 2249
 	#define G_I_SIZE 2305 
-	#define ECDH_SECRET_SIZE 64
+	#define KEM_SECRET_SIZE 64
 #endif
 #ifdef BIKE_LEVEL_1
 #ifndef HQC_LEVEL_1
@@ -200,7 +200,6 @@
 #endif
 
 
-
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 
 #define BSTR_ENCODING_OVERHEAD(x)                                              \
@@ -238,6 +237,16 @@
 #define SIGNATURE_SIZE 64
 #endif
 
+#ifdef PQ_T_HYBRID 
+#define G_X_SIZE_F (G_X_SIZE + P_256_PUB_KEY_X_CORD_SIZE)  
+#define G_I_SIZE_F (G_I_SIZE + P_256_PUB_KEY_UNCOMPRESSED_SIZE)
+#define G_Y_SIZE_F (G_Y_SIZE + P_256_PUB_KEY_X_CORD_SIZE)
+#else
+#define G_X_SIZE_F G_X_SIZE
+#define G_I_SIZE_F G_I_SIZE
+#define G_Y_SIZE_F G_Y_SIZE
+ #endif
+
 
 #define CRED_I_SIZE PK_SIZE + SIGNATURE_SIZE + 200
 #define CRED_R_SIZE PK_SIZE + SIGNATURE_SIZE + 200
@@ -268,6 +277,11 @@
 #define ECDH_SECRET_SIZE 32 /*PQ shared secret has the same size than ecdh secret */
 #endif
 
+#ifndef KEM_SECRET_SIZE
+#define KEM_SECRET_SIZE ECDH_SECRET_SIZE /*PQ shared secret has the same size than ecdh secret */
+#endif
+
+
 #define PRK_SIZE 32
 #define HASH_SIZE 32
 #define AEAD_IV_SIZE 13
@@ -288,7 +302,7 @@
 	(AS_BSTR_SIZE(C_R_SIZE) + ID_CRED_I_SIZE +                             \
 	 AS_BSTR_SIZE(SIG_OR_MAC_SIZE) + EAD_SIZE)
 #define CIPHERTEXT2_SIZE PLAINTEXT2_SIZE
-#define G_Y_CIPHERTEXT_2 (G_Y_SIZE + CIPHERTEXT2_SIZE)
+#define G_Y_CIPHERTEXT_2 (G_Y_SIZE_F + CIPHERTEXT2_SIZE)
 
 #define PLAINTEXT3_SIZE                                                        \
 	(ID_CRED_I_SIZE + AS_BSTR_SIZE(SIG_OR_MAC_SIZE) + EAD_SIZE)
@@ -299,8 +313,8 @@
 #define CIPHERTEXT4_SIZE PLAINTEXT4_SIZE
 
 #define MSG_1_SIZE                                                             \
-	(1 + SUITES_I_SIZE + G_X_SIZE + AS_BSTR_SIZE(C_I_SIZE) + EAD_SIZE)
-#define MSG_2_SIZE (G_Y_SIZE + CIPHERTEXT2_SIZE + AS_BSTR_SIZE(C_R_SIZE))
+	(1 + SUITES_I_SIZE + G_X_SIZE_F + AS_BSTR_SIZE(C_I_SIZE) + EAD_SIZE)
+#define MSG_2_SIZE (G_Y_SIZE_F + CIPHERTEXT2_SIZE + AS_BSTR_SIZE(C_R_SIZE))
 
 #define MSG_3_SIZE AS_BSTR_SIZE(CIPHERTEXT3_SIZE)
 #define MSG_4_SIZE AS_BSTR_SIZE(CIPHERTEXT4_SIZE)
@@ -333,6 +347,6 @@
 #define TH34_INPUT_SIZE                                                        \
 	(AS_BSTR_SIZE(HASH_SIZE) + PLAINTEXT23_MAX_SIZE + CRED_MAX_SIZE)
 
-#define TH2_INPUT_SIZE (AS_BSTR_SIZE(G_Y_SIZE) + AS_BSTR_SIZE(HASH_SIZE))
+#define TH2_INPUT_SIZE (AS_BSTR_SIZE(G_Y_SIZE_F) + AS_BSTR_SIZE(HASH_SIZE))
 
 #endif

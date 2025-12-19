@@ -16,6 +16,7 @@
 #include "common/print_util.h"
 #include "common/crypto_wrapper.h"
 #include "common/oscore_edhoc_error.h"
+#include "common/byte_array.h"
 
 #include "edhoc/hkdf_info.h"
 #include "edhoc/messages.h"
@@ -176,7 +177,7 @@ enum err msg2_gen(struct edhoc_responder_context *c, struct runtime_context *rc,
 
 	enum method_type method = INITIATOR_SK_RESPONDER_SK;
 	BYTE_ARRAY_NEW(suites_i, SUITES_I_SIZE, SUITES_I_SIZE);
-	BYTE_ARRAY_NEW(g_x, G_X_SIZE, G_X_SIZE);
+	BYTE_ARRAY_NEW(g_x, G_X_SIZE_F, G_X_SIZE_F);
 
 	TRY(msg1_parse(&rc->msg, &method, &suites_i, &g_x, c_i, &rc->ead));
 
@@ -197,6 +198,11 @@ enum err msg2_gen(struct edhoc_responder_context *c, struct runtime_context *rc,
 	/******************* create and send message 2*************************/
 	
 	BYTE_ARRAY_NEW(g_xy, ECDH_SECRET_SIZE, ECDH_SECRET_SIZE);
+	#if defined(PQ_T_HYBRID)
+			PRINTF("PQ/T hybrid declare second array\n");
+			BYTE_ARRAY_NEW(g_xy_kem, get_kem_ss_len(rc->suite.edhoc_ecdh), get_kem_ss_len(rc->suite.edhoc_ecdh));
+			//BYTE_ARRAY_NEW(g_dh, get_pk_len(rc->suite.edhoc_ecdh), get_pk_len(rc->suite.edhoc_ecdh));
+	#endif
 	
 	if((suites_i.ptr[suites_i.len -1] >= SUITE_7)&&(suites_i.ptr[suites_i.len -1] <= SUITE_16)){
 		/* 	PQ Proposal 1 - key generation with KEMs
@@ -217,22 +223,90 @@ enum err msg2_gen(struct edhoc_responder_context *c, struct runtime_context *rc,
 		return -1;
 		#endif
 	} 
+	/*Calculate the KEM if is PQ/T hybrid suit*/
+	else if ((suites_i.ptr[suites_i.len -1] >= SUITE_17)&&(suites_i.ptr[suites_i.len -1] <= SUITE_20)){
+			#if defined(PQ_T_HYBRID)
+			/*calculate the DH shared secret*/
+			PRINT_MSG("PQ/T hybrid suit\n");
+			PRINT_ARRAY("PQ/T y ", c->y.ptr, c->y.len);
+			PRINT_ARRAY("PQ/T gx ", g_x.ptr, g_x.len);
+			byte_array g_x_dh;
+			g_x_dh.ptr = g_x.ptr;
+			g_x_dh.len = get_ecdh_pk_len(rc->suite.edhoc_ecdh);
+			PRINT_ARRAY("DH y ", c->y.ptr, c->y.len);
+			PRINT_ARRAY("DH gx ", g_x_dh.ptr, g_x_dh.len);
+			TRY(shared_secret_derive(rc->suite.edhoc_ecdh, &c->y, &g_x_dh, g_xy.ptr));
+			PRINT_ARRAY("G_XY (ECDH shared secret) ", g_xy.ptr, g_xy.len);	
+
+			PRINTF("KEM mechanism\n");
+			byte_array g_x_kem;
+			g_x_kem.ptr = g_x.ptr + get_ecdh_pk_len(rc->suite.edhoc_ecdh);
+			g_x_kem.len = get_kem_pk_len(rc->suite.edhoc_ecdh);
+			PRINT_ARRAY("KEM - g_x ", g_x_kem.ptr, g_x_kem.len);
+			PRINTF("gx PQ/T size: %d - KEM size %d\n",g_x.len,g_x_kem.len);
+		
+			byte_array g_y_kem;
+			g_y_kem.ptr = c->g_y.ptr + get_ecdh_pk_len(rc->suite.edhoc_ecdh);
+			g_y_kem.len = get_kem_cc_len(rc->suite.edhoc_ecdh);
+			PRINT_ARRAY("PQ/T g_y ", c->g_y.ptr, c->g_y.len);
+			PRINT_ARRAY("KEM - g_y ", g_y_kem.ptr, g_y_kem.len);
+
+			TRY(kem_encapsulate(rc->suite.edhoc_ecdh,&g_x_kem,&g_y_kem,&g_xy_kem));
+			PRINTF("Encapsulate correct\n");
+			PRINT_ARRAY("G_XY (PQ SS)", g_xy_kem.ptr, g_xy_kem.len);
+			PRINT_ARRAY("G_Y (PQ CC)", g_y_kem.ptr, g_y_kem.len);
+			PRINT_ARRAY("G_Y (PQ/T)", c->g_y.ptr, c->g_y.len);
+			#else
+			PRINT_MSG("Need to select PQ/T Hybrid crypo");
+			return -1;
+			#endif
+		}
 	else{
 		/*calculate the DH shared secret*/
 		PRINT_ARRAY("y ", c->y.ptr, c->y.len);
 		PRINT_ARRAY("gx ", g_x.ptr, g_x.len);
 		TRY(shared_secret_derive(rc->suite.edhoc_ecdh, &c->y, &g_x, g_xy.ptr));
-		PRINT_ARRAY("G_XY (ECDH shared secret) ", g_xy.ptr, g_xy.len);
+		PRINT_ARRAY("G_XY (ECDH shared secret) ", g_xy.ptr, g_xy.len);	
 	}	
 
+
 	BYTE_ARRAY_NEW(th2, HASH_SIZE, get_hash_len(rc->suite.edhoc_hash));
-	TRY(hash(rc->suite.edhoc_hash, &rc->msg, &rc->msg1_hash));
-	TRY(th2_calculate(rc->suite.edhoc_hash, &rc->msg1_hash, &c->g_y, &th2));
-
 	BYTE_ARRAY_NEW(PRK_2e, PRK_SIZE, PRK_SIZE);
-	TRY(hkdf_extract(rc->suite.edhoc_hash, &th2, &g_xy, PRK_2e.ptr));
-	PRINT_ARRAY("PRK_2e", PRK_2e.ptr, PRK_2e.len);
+	#if defined(PQ_T_HYBRID)
+	BYTE_ARRAY_NEW(PRK_2e_b, PRK_SIZE, PRK_SIZE);
+	#endif
+	/*Second derivation in cancadae when PQ/T hybrid is used */
+	if ((suites_i.ptr[suites_i.len -1] >= SUITE_17)&&(suites_i.ptr[suites_i.len -1] <= SUITE_20)){
+		#if defined(PQ_T_HYBRID)
+		/*calculate th2*/
+		TRY(hash(rc->suite.edhoc_hash, &rc->msg, &rc->msg1_hash));
+		TRY(th2_calculate(rc->suite.edhoc_hash, &rc->msg1_hash, &c->g_y, &th2));
+		PRINT_ARRAY("TH_2", th2.ptr, th2.len);
 
+		/*calculate PRK_2e*/
+		
+		TRY(hkdf_extract(rc->suite.edhoc_hash, &th2, &g_xy, PRK_2e.ptr));
+		PRINT_ARRAY("PRK_2e (first DH derivation)", PRK_2e.ptr, PRK_2e.len);
+		
+		/*calculate PRK_2e_b*/
+		TRY(hkdf_extract(rc->suite.edhoc_hash, &PRK_2e, &g_xy_kem, PRK_2e_b.ptr));
+		PRINT_ARRAY("PRK_2e_b (second KEM derivation)", PRK_2e_b.ptr, PRK_2e_b.len);
+        memcpy(PRK_2e.ptr, PRK_2e_b.ptr, PRK_2e_b.len);
+		PRINT_ARRAY("PRK_2e final", PRK_2e.ptr, PRK_2e.len);
+		#else
+		PRINT_MSG("Need to select PQ/T Hybrid crypo");
+		return -1;
+		#endif
+	}
+	else{
+		
+		TRY(hash(rc->suite.edhoc_hash, &rc->msg, &rc->msg1_hash));
+		TRY(th2_calculate(rc->suite.edhoc_hash, &rc->msg1_hash, &c->g_y, &th2));
+
+		
+		TRY(hkdf_extract(rc->suite.edhoc_hash, &th2, &g_xy, PRK_2e.ptr));
+		PRINT_ARRAY("PRK_2e", PRK_2e.ptr, PRK_2e.len);
+	}
 	/*derive prk_3e2m*/
 	TRY(prk_derive(static_dh_r, rc->suite, SALT_3e2m, &th2, &PRK_2e, &g_x,
 		       &c->r, rc->prk_3e2m.ptr));
@@ -305,7 +379,7 @@ enum err msg3_process(struct edhoc_responder_context *c,
 	/*check the authenticity of the initiator*/
 	BYTE_ARRAY_NEW(cred_i, CRED_I_SIZE, CRED_I_SIZE);
 	BYTE_ARRAY_NEW(pk, PK_SIZE, PK_SIZE);
-	BYTE_ARRAY_NEW(g_i, G_I_SIZE, G_I_SIZE);
+	BYTE_ARRAY_NEW(g_i, G_I_SIZE_F, G_I_SIZE_F);
 
 	TRY(retrieve_cred(rc->static_dh_i, cred_i_array, &id_cred_i, &cred_i,
 			  &pk, &g_i));
@@ -380,16 +454,21 @@ enum err edhoc_responder_run_extended(
 	//printf("-------------------------------------------------------\n");
 	//printf("Generating message 2...\n");
 	TRY(msg2_gen(c, &rc, c_i_bytes));
+	PRINT_MSG("msg2 generated\n");
 	TRY(ead_process(c->params_ead_process, &rc.ead));
+	PRINT_ARRAY("msg2",rc.msg.ptr,rc.msg.len);
 	//printf("MSG 2 size: %d\n",rc.msg.len);
 	//printf("Sending message 2...\n");
+	PRINT_MSG("ead prcessed\n");
 	TRY(tx(c->sock, &rc.msg));
-
+	PRINT_MSG("mesage tx\n");
 	/*receive message 3*/
 	//printf("-------------------------------------------------------\n");
 	//printf("waiting to receive message 3...\n");
 	rc.msg.len = sizeof(rc.msg_buf);
+	PRINT_MSG("waiting to receive\n");
 	TRY(rx(c->sock, &rc.msg));
+	PRINT_MSG("received\n");
 	//printf("MSG 3 size: %d\n",rc.msg.len);
     //printf("-------------------------------------------------------\n");
 	TRY(msg3_process(c, &rc, cred_i_array, prk_out, initiator_pub_key));

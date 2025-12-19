@@ -80,16 +80,16 @@ static enum err th34_input_encode(struct byte_array *th23,
 
 	TRY(encode_bstr(th23, th34_input));
 	uint32_t tmp_len = th34_input->len;
-
+    PRINT_MSG("Encoded\n");
 	TRY(_memcpy_s(th34_input->ptr + tmp_len,
 		      th34_input->len - tmp_len - cred->len, plaintext_23->ptr,
 		      plaintext_23->len));
-
+	PRINT_MSG("memcopy1\n");
 	tmp_len += plaintext_23->len;
 
 	TRY(_memcpy_s(th34_input->ptr + tmp_len, th34_input->len - tmp_len,
 		      cred->ptr, cred->len));
-
+	PRINT_MSG("memcopy2\n");
 	th34_input->len = tmp_len + cred->len;
 
 	PRINT_ARRAY("Input to calculate TH_3/TH_4 (CBOR Sequence)",

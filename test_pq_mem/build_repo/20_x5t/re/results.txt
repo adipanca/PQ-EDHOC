@@ -1,0 +1,20 @@
+Total values from pqm4.txt:
+{'text': 130523, 'data': 163, 'bss': 225, 'dec': 130911}
+
+Total values from elf.txt:
+{'text': 334816, 'data': 15872, 'bss': 53474, 'dec': 404162}
+
+Total values from libsize.txt:
+{'text': 28566, 'data': 8, 'bss': 14, 'dec': 28588}
+
+Percentages of pqm4 totals relative to elf totals:
+Text percentage: 38.98%
+Data percentage: 1.03%
+Bss percentage: 0.42%
+Dec percentage: 32.39%
+
+Percentages of libsize totals relative to elf totals:
+Text percentage: 8.53%
+Data percentage: 0.05%
+Bss percentage: 0.03%
+Dec percentage: 7.07%

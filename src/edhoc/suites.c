@@ -177,6 +177,52 @@ enum err get_suite(enum suite_label label, struct suite *suite)
 		suite->app_hash = SHA_256;
 	break;
 	#endif
+
+	#if defined(PQ_T_HYBRID)
+		case SUITE_17:
+		suite->suite_label = SUITE_17;
+		suite->edhoc_aead = AES_CCM_16_64_128;
+		suite->edhoc_hash = SHA_256;
+		suite->edhoc_mac_len_static_dh = MAC8;
+		suite->edhoc_ecdh = H_P256_KYBER_LEVEL1;
+		suite->edhoc_sign = ES256;
+		suite->app_aead = AES_CCM_16_64_128;
+		suite->app_hash = SHA_256;
+		break;
+		
+		case SUITE_18:
+		suite->suite_label = SUITE_18;
+		suite->edhoc_aead = AES_CCM_16_64_128;
+		suite->edhoc_hash = SHA_256;
+		suite->edhoc_mac_len_static_dh = MAC8;
+		suite->edhoc_ecdh = H_P256_KYBER_LEVEL3;
+		suite->edhoc_sign = ES256;
+		suite->app_aead = AES_CCM_16_64_128;
+		suite->app_hash = SHA_256;
+		break;
+
+		case SUITE_19:
+		suite->suite_label = SUITE_19;
+		suite->edhoc_aead = AES_CCM_16_64_128;
+		suite->edhoc_hash = SHA_256;
+		suite->edhoc_mac_len_static_dh = MAC8;
+		suite->edhoc_ecdh = H_P256_HQC_LEVEL1;
+		suite->edhoc_sign = ES256;
+		suite->app_aead = AES_CCM_16_64_128;
+		suite->app_hash = SHA_256;
+		break;
+		
+		case SUITE_20:
+		suite->suite_label = SUITE_20;
+		suite->edhoc_aead = AES_CCM_16_64_128;
+		suite->edhoc_hash = SHA_256;
+		suite->edhoc_mac_len_static_dh = MAC8;
+		suite->edhoc_ecdh = H_P256_BIKE_LEVEL1;
+		suite->edhoc_sign = ES256;
+		suite->app_aead = AES_CCM_16_64_128;
+		suite->app_hash = SHA_256;
+	    break;
+	#endif 
 	default:
 		return unsupported_cipher_suite;
 		break;
@@ -405,7 +451,19 @@ uint32_t get_ecdh_pk_len(enum ecdh_alg alg)
 	case X25519:
 		return 32;
 		break;
-	#ifdef LIBOQS
+	case H_P256_KYBER_LEVEL1:
+		return 32;
+		break;
+	case H_P256_KYBER_LEVEL3:
+		return 32;
+		break;
+	case H_P256_HQC_LEVEL1:
+		return 32;
+		break;
+	case H_P256_BIKE_LEVEL1:
+		return 32;
+		break;
+	/*#ifdef LIBOQS
 	case KYBER_LEVEL1:
 		return OQS_KEM_ml_kem_512_length_public_key;
 		break;
@@ -435,7 +493,7 @@ uint32_t get_ecdh_pk_len(enum ecdh_alg alg)
 	case BIKE_LEVEL1:
 		return 1541;
 		break;
-	#endif
+	#endif*/
 	default: 
 		return 0;
 	}
@@ -461,6 +519,18 @@ uint32_t get_kem_pk_len(enum ecdh_alg alg)
 	case BIKE_LEVEL1:
 		return OQS_KEM_bike_l1_length_public_key;
 		break;
+	case H_P256_KYBER_LEVEL1:
+		return OQS_KEM_ml_kem_512_length_public_key;
+		break;
+	case H_P256_KYBER_LEVEL3:
+		return OQS_KEM_ml_kem_768_length_public_key;
+		break;
+	case H_P256_HQC_LEVEL1:
+		return OQS_KEM_hqc_128_length_public_key;
+		break;
+	case H_P256_BIKE_LEVEL1:
+		return OQS_KEM_bike_l1_length_public_key;
+		break;
 	#endif
 	#ifdef PQM4
 	case KYBER_LEVEL1:
@@ -473,6 +543,18 @@ uint32_t get_kem_pk_len(enum ecdh_alg alg)
 		return 2249;
 		break;
 	case BIKE_LEVEL1:
+		return 1541;
+		break;
+	case H_P256_KYBER_LEVEL1:
+		return 800;
+		break;
+	case H_P256_KYBER_LEVEL3:
+		return 1184;
+		break;
+	case H_P256_HQC_LEVEL1:
+		return 2249;
+		break;
+	case H_P256_BIKE_LEVEL1:
 		return 1541;
 		break;
 	#endif
@@ -501,6 +583,18 @@ uint32_t get_kem_sk_len(enum ecdh_alg alg)
 	case BIKE_LEVEL1:
 		return OQS_KEM_bike_l1_length_secret_key;
 		break;
+	case H_P256_KYBER_LEVEL1:
+		return OQS_KEM_ml_kem_512_length_secret_key;
+		break;
+	case H_P256_KYBER_LEVEL3:
+		return OQS_KEM_ml_kem_768_length_secret_key;
+		break;
+	case H_P256_HQC_LEVEL1:
+		return OQS_KEM_hqc_128_length_secret_key;
+		break;
+	case H_P256_BIKE_LEVEL1:
+		return OQS_KEM_bike_l1_length_secret_key;
+		break;
 	#endif
 	#ifdef PQM4
 	case KYBER_LEVEL1:
@@ -513,6 +607,18 @@ uint32_t get_kem_sk_len(enum ecdh_alg alg)
 		return 2305;
 		break;
 	case BIKE_LEVEL1:
+		return 5223;
+		break;
+	case H_P256_KYBER_LEVEL1:
+		return 1632;
+		break;
+	case H_P256_KYBER_LEVEL3:
+		return 2400;
+		break;
+	case H_P256_HQC_LEVEL1:
+		return 2305;
+		break;
+	case H_P256_BIKE_LEVEL1:
 		return 5223;
 		break;
 	#endif
@@ -541,6 +647,18 @@ uint32_t get_kem_cc_len(enum ecdh_alg alg)
 	case BIKE_LEVEL1:
 		return OQS_KEM_bike_l1_length_ciphertext;
 		break;
+	case H_P256_KYBER_LEVEL1 :
+		return OQS_KEM_ml_kem_512_length_ciphertext;
+		break;
+	case H_P256_KYBER_LEVEL3 :
+		return OQS_KEM_ml_kem_768_length_ciphertext;
+		break;
+	case H_P256_HQC_LEVEL1 :
+		return OQS_KEM_hqc_128_length_ciphertext;
+		break;
+	case H_P256_BIKE_LEVEL1 :
+		return OQS_KEM_bike_l1_length_ciphertext;
+		break;
 	#endif
 	#ifdef PQM4
 	case KYBER_LEVEL1:
@@ -553,6 +671,18 @@ uint32_t get_kem_cc_len(enum ecdh_alg alg)
 		return 4433;
 		break;
 	case BIKE_LEVEL1:
+		return 1573;
+		break;
+	case H_P256_KYBER_LEVEL1 :
+		return 768;
+		break;
+	case H_P256_KYBER_LEVEL3 :
+		return 1088;
+		break;
+	case H_P256_HQC_LEVEL1 :
+		return 4433;
+		break;
+	case H_P256_BIKE_LEVEL1 :
 		return 1573;
 		break;
 	#endif
@@ -582,6 +712,18 @@ uint32_t get_kem_ss_len(enum ecdh_alg alg)
 	case BIKE_LEVEL1:
 		return 32;
 		break;
+    case H_P256_KYBER_LEVEL1 :
+		return 32;
+		break;
+	case H_P256_KYBER_LEVEL3 :
+		return 32;
+		break;
+	case H_P256_HQC_LEVEL1 :
+		return 32;
+		break;
+	case H_P256_BIKE_LEVEL1 :
+		return 32;
+		break;
 	#endif
 	#ifdef PQM4
 	case KYBER_LEVEL1:
@@ -595,6 +737,18 @@ uint32_t get_kem_ss_len(enum ecdh_alg alg)
 		break;
 	case BIKE_LEVEL1:
 		return 32;
+		break;
+	case H_P256_KYBER_LEVEL1 :
+		return 32;
+		break;
+	case H_P256_KYBER_LEVEL3 :
+		return 32;
+		break;
+	case H_P256_HQC_LEVEL1 :
+		return 64;
+		break;
+	case H_P256_BIKE_LEVEL1 :
+		return 64;
 		break;
 	#endif
 	default: 

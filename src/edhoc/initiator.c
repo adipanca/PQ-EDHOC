@@ -140,20 +140,28 @@ static enum err msg2_process(const struct edhoc_initiator_context *c,
 	if((c->suites_i.ptr[c->suites_i.len -1] >= SUITE_7)&&(c->suites_i.ptr[c->suites_i.len -1] <= SUITE_16)){
 		/*Set Gy size to the ciphertext size for KEMs*/
 		g_y_size = get_kem_cc_len(rc->suite.edhoc_ecdh);
-		PRINTF("Suit:%d",rc->suite.edhoc_ecdh);
-		PRINTF("G_Y_SIZE: %d",G_Y_SIZE);
-		PRINTF("Set gy to the ciphertext size for KEMS: %d\n",G_Y_SIZE);
+		PRINTF("Suit:%d\n",rc->suite.edhoc_ecdh);
+		PRINTF("G_Y_SIZE: %d",G_Y_SIZE_F);
+		PRINTF("Set gy to the ciphertext size for KEMS: %d\n",G_Y_SIZE_F);
 	}
+	/*Get size of gy in PQ/T hybrid suit*/
+	else if ((c->suites_i.ptr[c->suites_i.len -1] >= SUITE_17)&&(c->suites_i.ptr[c->suites_i.len -1] <= SUITE_20)){
+			#if defined(PQ_T_HYBRID)
+			PRINTF("PQ/T Hybrid Suit:%d\n",rc->suite.edhoc_ecdh);
+			g_y_size =  get_ecdh_pk_len(rc->suite.edhoc_ecdh)+get_kem_cc_len(rc->suite.edhoc_ecdh);
+			PRINTF("PQ/T Hybrid g_y size:%d",g_y_size);
+			#endif
+	}		
 	else{
 		/*Set Gy size to the dh key size for DH*/
 		PRINT_MSG("Set gy to the dh key size for DH\n");
 		g_y_size =  get_ecdh_pk_len(rc->suite.edhoc_ecdh);
 	}
 	
-	BYTE_ARRAY_NEW(g_y, G_Y_SIZE, g_y_size);
-  uint32_t ciphertext_len = rc->msg.len - g_y.len;
+	BYTE_ARRAY_NEW(g_y, G_Y_SIZE_F, g_y_size);
+  	uint32_t ciphertext_len = rc->msg.len - g_y.len;
 
-  ciphertext_len -= BSTR_ENCODING_OVERHEAD(ciphertext_len);
+  	ciphertext_len -= BSTR_ENCODING_OVERHEAD(ciphertext_len);
 	PRINT_ARRAY("message_2 (CBOR Sequence)", rc->msg.ptr, rc->msg.len);
 	BYTE_ARRAY_NEW(ciphertext, CIPHERTEXT2_SIZE, ciphertext_len);
 	BYTE_ARRAY_NEW(plaintext, PLAINTEXT2_SIZE, ciphertext.len);
@@ -163,6 +171,10 @@ static enum err msg2_process(const struct edhoc_initiator_context *c,
 
 	/*calculate the DH shared secret*/
 	BYTE_ARRAY_NEW(g_xy, ECDH_SECRET_SIZE, ECDH_SECRET_SIZE);
+	#if defined(PQ_T_HYBRID)
+		BYTE_ARRAY_NEW(g_xy_KEM, KEM_SECRET_SIZE, KEM_SECRET_SIZE);
+		PRINT_MSG("PQ/T Hybrid array foe g_xy_KEM\n");
+	#endif
 
 	if((c->suites_i.ptr[c->suites_i.len -1] >= SUITE_7)&&(c->suites_i.ptr[c->suites_i.len -1] <= SUITE_16)){
 		/* 	PQ Proposal 1 - key generation with KEMs
@@ -178,6 +190,42 @@ static enum err msg2_process(const struct edhoc_initiator_context *c,
 		return -1;
 		#endif
 	}
+	/*Compute shared secrey in PQ/T hybrid suit*/
+	else if ((c->suites_i.ptr[c->suites_i.len -1] >= SUITE_17)&&(c->suites_i.ptr[c->suites_i.len -1] <= SUITE_20)){
+			#if defined(PQ_T_HYBRID)
+			PRINTF("PQ/T Hybrid compute shared secret (Suit:%d)\n",rc->suite.edhoc_ecdh);
+			PRINT_ARRAY("x PQ/T ", c->x.ptr, c->x.len);
+			PRINT_ARRAY("gy PQ/T", g_y.ptr, g_y.len);
+			byte_array g_y_dh;
+			g_y_dh.ptr = g_y.ptr;
+			g_y_dh.len = get_ecdh_pk_len(rc->suite.edhoc_ecdh);
+			byte_array x_dh;
+			x_dh.ptr = c->x.ptr;
+			x_dh.len = get_ecdh_pk_len(rc->suite.edhoc_ecdh);
+			PRINT_ARRAY("x DH ", x_dh.ptr,x_dh.len);
+			PRINT_ARRAY("gy DH", g_y_dh.ptr, g_y_dh.len);
+			TRY(shared_secret_derive(rc->suite.edhoc_ecdh, &x_dh, &g_y_dh, g_xy.ptr));
+			PRINT_ARRAY("G_XY (ECDH shared secret) ", g_xy.ptr, g_xy.len);
+
+			PRINT_MSG("KEM decapsulation\n");
+			#if defined(PQM4) || defined(LIBOQS)
+			byte_array g_y_kem;
+			g_y_kem.ptr = g_y.ptr + get_ecdh_pk_len(rc->suite.edhoc_ecdh);
+			g_y_kem.len = get_kem_cc_len(rc->suite.edhoc_ecdh);
+			byte_array x_kem;
+			x_kem.ptr = c->x.ptr + get_ecdh_pk_len(rc->suite.edhoc_ecdh);
+			x_kem.len =  get_kem_sk_len(rc->suite.edhoc_ecdh);
+			PRINT_ARRAY("x KEM ", x_kem.ptr,x_kem.len);
+			PRINT_ARRAY("gy KEM: (PQ CC)", g_y_kem.ptr, g_y_kem.len);
+			//PRINT_ARRAY("G_Y (PQ CC) ", g_y.ptr, g_y.len);
+			TRY(kem_decapsulate(rc->suite.edhoc_ecdh, &g_y_kem, &x_kem, &g_xy_KEM));
+			PRINT_ARRAY("G_XY (PQ SS) ", g_xy_KEM.ptr, g_xy_KEM.len);
+			#else
+			PRINT_MSG("Need to select PQ crypo");
+			return -1;
+			#endif
+			#endif
+	}
 	else{
 		PRINT_ARRAY("x ", c->x.ptr, c->x.len);
 		PRINT_ARRAY("gy ", g_y.ptr, g_y.len);
@@ -185,16 +233,41 @@ static enum err msg2_process(const struct edhoc_initiator_context *c,
 		PRINT_ARRAY("G_XY (ECDH shared secret) ", g_xy.ptr, g_xy.len);
 	} 
 	
-	/*calculate th2*/
 	BYTE_ARRAY_NEW(th2, HASH_SIZE, get_hash_len(rc->suite.edhoc_hash));
-
-	TRY(th2_calculate(rc->suite.edhoc_hash, &rc->msg1_hash, &g_y, &th2));
-	PRINT_ARRAY("TH_2", th2.ptr, th2.len);
-
-	/*calculate PRK_2e*/
 	BYTE_ARRAY_NEW(PRK_2e, PRK_SIZE, PRK_SIZE);
-	TRY(hkdf_extract(rc->suite.edhoc_hash, &th2, &g_xy, PRK_2e.ptr));
-	PRINT_ARRAY("PRK_2e", PRK_2e.ptr, PRK_2e.len);
+
+	/*Second derivation in cascadae when PQ/T hybrid is used */
+	if ((c->suites_i.ptr[c->suites_i.len -1] >= SUITE_17)&&(c->suites_i.ptr[c->suites_i.len -1] <= SUITE_20)){
+		#if defined(PQ_T_HYBRID)
+		/*calculate th2*/
+		TRY(th2_calculate(rc->suite.edhoc_hash, &rc->msg1_hash, &g_y, &th2));
+		PRINT_ARRAY("TH_2", th2.ptr, th2.len);
+
+		/*calculate PRK_2e*/
+		PRINT_ARRAY("GX_Y (for prk_2e)", g_xy.ptr, g_xy.len);
+		TRY(hkdf_extract(rc->suite.edhoc_hash, &th2, &g_xy, PRK_2e.ptr));
+		PRINT_ARRAY("PRK_2e (first DH derivation)", PRK_2e.ptr, PRK_2e.len);
+
+		/*calculate PRK_2e_b*/
+		BYTE_ARRAY_NEW(PRK_2e_b, PRK_SIZE, PRK_SIZE);
+	
+		TRY(hkdf_extract(rc->suite.edhoc_hash, &PRK_2e, &g_xy_KEM, PRK_2e_b.ptr));
+		PRINT_ARRAY("PRK_2e_b (second KEM DH)", PRK_2e_b.ptr, PRK_2e_b.len);
+        memcpy(PRK_2e.ptr, PRK_2e_b.ptr, PRK_2e_b.len);
+		PRINT_ARRAY("PRK_2e", PRK_2e_b.ptr, PRK_2e_b.len);
+		#endif
+		}
+	/*For classic DH and pure PQC simple derivation*/
+	else{
+		/*calculate th2*/
+		TRY(th2_calculate(rc->suite.edhoc_hash, &rc->msg1_hash, &g_y, &th2));
+		PRINT_ARRAY("TH_2", th2.ptr, th2.len);
+
+		/*calculate PRK_2e*/
+		TRY(hkdf_extract(rc->suite.edhoc_hash, &th2, &g_xy, PRK_2e.ptr));
+		PRINT_ARRAY("PRK_2e", PRK_2e.ptr, PRK_2e.len);
+	}	
+
 
 	BYTE_ARRAY_NEW(sign_or_mac, SIG_OR_MAC_SIZE, SIG_OR_MAC_SIZE);
 	BYTE_ARRAY_NEW(id_cred_r, ID_CRED_R_SIZE, ID_CRED_R_SIZE);

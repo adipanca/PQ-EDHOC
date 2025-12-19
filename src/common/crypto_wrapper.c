@@ -109,6 +109,10 @@ static const char* OQS_ID2name(int id) {
 		//case DILITHIUM_LEVEL2: return OQS_SIG_alg_dilithium_2;
 		case DILITHIUM_LEVEL2: return OQS_SIG_alg_ml_dsa_44;
 		case BIKE_LEVEL1: return OQS_KEM_alg_bike_l1;
+		case H_P256_KYBER_LEVEL1: return OQS_KEM_alg_ml_kem_512;
+		case H_P256_KYBER_LEVEL3: return OQS_KEM_alg_ml_kem_768;
+		case H_P256_HQC_LEVEL1: return OQS_KEM_alg_hqc_128;
+		case H_P256_BIKE_LEVEL1: return OQS_KEM_alg_bike_l1;
         default:           break;
     }
     return NULL;
@@ -164,6 +168,22 @@ enum err WEAK ephemeral_kem_key_gen(enum ecdh_alg alg,
 			pk->len = OQS_KEM_bike_l1_length_public_key ;
 			sk->len = OQS_KEM_bike_l1_length_secret_key ;
             break;
+		case H_P256_KYBER_LEVEL1:
+            pk->len = OQS_KEM_ml_kem_512_length_public_key;
+			sk->len = OQS_KEM_ml_kem_512_length_secret_key;
+            break;
+		case H_P256_KYBER_LEVEL3:
+            pk->len = OQS_KEM_ml_kem_768_length_public_key;
+			sk->len = OQS_KEM_ml_kem_768_length_secret_key;
+            break;
+		case H_P256_HQC_LEVEL1:
+     	    pk->len = OQS_KEM_hqc_128_length_public_key ;
+			sk->len = OQS_KEM_hqc_128_length_secret_key ;
+            break;
+		case H_P256_BIKE_LEVEL1:
+            pk->len = OQS_KEM_hqc_128_length_public_key ;
+			sk->len = OQS_KEM_hqc_128_length_secret_key ;
+            break;
         default:
             /* No other values supported. */
             ret = -1; // Na to allaxw
@@ -174,7 +194,7 @@ enum err WEAK ephemeral_kem_key_gen(enum ecdh_alg alg,
 
 	if (OQS_KEM_keypair(kem, pk->ptr, sk->ptr) !=
 		OQS_SUCCESS) {
-		ret = -1; // Na to allaxw
+		ret = -2; // Na to allaxw
 	}
     
 	OQS_KEM_free(kem);
@@ -282,6 +302,22 @@ enum err WEAK kem_encapsulate(enum ecdh_alg alg,
 			ct->len = OQS_KEM_bike_l1_length_ciphertext ;
 			shared_secret->len = OQS_KEM_bike_l1_length_shared_secret ;
 		break;
+		case H_P256_KYBER_LEVEL1:
+			ct->len = OQS_KEM_ml_kem_512_length_ciphertext;
+			shared_secret->len = OQS_KEM_ml_kem_512_length_shared_secret;
+		break;
+		case H_P256_KYBER_LEVEL3:
+			ct->len = OQS_KEM_ml_kem_768_length_ciphertext;
+			shared_secret->len = OQS_KEM_ml_kem_1024_length_shared_secret;
+		break;
+		case H_P256_HQC_LEVEL1:
+			ct->len = OQS_KEM_hqc_128_length_ciphertext ;
+			shared_secret->len = OQS_KEM_hqc_128_length_shared_secret;
+		break;
+		case H_P256_BIKE_LEVEL1:
+		    ct->len = OQS_KEM_bike_l1_length_ciphertext ;
+			shared_secret->len = OQS_KEM_bike_l1_length_shared_secret ;
+		break;
         default:
             /* No other values supported. */
             ret = -1; // Na to allaxw
@@ -325,6 +361,22 @@ enum err WEAK kem_encapsulate(enum ecdh_alg alg,
 			shared_secret->len = 64;
 		break;
 		case BIKE_LEVEL1:
+			ct->len =  1573;
+			shared_secret->len = 32;
+		break;
+		case H_P256_KYBER_LEVEL1:
+			ct->len = 768;
+            shared_secret->len = 32;
+		break;
+		case H_P256_KYBER_LEVEL3:
+			ct->len = 1088;
+            shared_secret->len = 32;
+		break;
+		case H_P256_HQC_LEVEL1:
+		    ct->len =  4433;
+			shared_secret->len = 64;
+		break;
+		case H_P256_BIKE_LEVEL1:
 			ct->len =  1573;
 			shared_secret->len = 32;
 		break;
@@ -945,8 +997,10 @@ enum err WEAK sign_edhoc(enum sign_alg alg, const struct byte_array *sk,
 #endif // EDHOC_MOCK_CRYPTO_WRAPPER
 
 	if (alg == EdDSA) {
+PRINT_MSG("EdDSA signature\n");
 #ifdef DH
 #if defined(COMPACT25519)
+		PRINT_MSG("COMPACT25519 signature\n");
 		edsign_sign(out, pk->ptr, sk->ptr, msg->ptr, msg->len);
 		return ok;
 #endif
@@ -954,7 +1008,7 @@ enum err WEAK sign_edhoc(enum sign_alg alg, const struct byte_array *sk,
 	}
 	//else if ((alg == FALCON_LEVEL1)||(alg == FALCON_LEVEL1)||(alg == FALCON_PADDED_LEVEL1)||(alg == FALCON_PADDED_LEVEL5)){
 	else if ((alg <= FALCON_LEVEL1)&&(alg >= HAETAE_LEVEL2)){	
-	#if defined(PQM4) || defined(LIBOQS) 
+	#if (defined(PQM4) || defined(LIBOQS)) && !defined(PQ_T_HYBRID) 
 	    PRINT_MSG("PQ signature\n");
 		int ret = sign_signature(alg, sk, msg,out,out_len);
 		PRINT_MSG("PQ signature correct\n");
@@ -1048,7 +1102,7 @@ enum err WEAK verify_edhoc(enum sign_alg alg, const struct byte_array *pk,
 	}
 	//else if ((alg == FALCON_LEVEL1)||(alg == FALCON_LEVEL1)||(alg == FALCON_PADDED_LEVEL1)||(alg == FALCON_PADDED_LEVEL5)){
 	else if ((alg <= FALCON_LEVEL1)&&(alg >= HAETAE_LEVEL2 )){	
-	#if defined(PQM4) || defined(LIBOQS) 
+	#if (defined(PQM4) || defined(LIBOQS)) && !defined(PQ_T_HYBRID) 
 		int ret = sign_verify(alg, pk, (const struct byte_array *) msg, (const struct byte_array *) sgn);
 		if (ret == 0){
 			*result = true;
@@ -1286,7 +1340,8 @@ enum err WEAK shared_secret_derive(enum ecdh_alg alg,
 		return ok;
 #endif
 	}
-	if (alg == P256) {
+	if ((alg == P256) || (alg == H_P256_KYBER_LEVEL1) || (alg == H_P256_KYBER_LEVEL3) || (alg == H_P256_HQC_LEVEL1) || (alg == H_P256_BIKE_LEVEL1)) {
+	PRINT_MSG("P256 in DH\n");	
 #if defined(TINYCRYPT)
 		uECC_Curve p256 = uECC_secp256r1();
 		uint8_t pk_decompressed[P_256_PUB_KEY_UNCOMPRESSED_SIZE];
