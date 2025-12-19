@@ -15,9 +15,8 @@ To configure the examples at this project and correctly use the **PQ-uEDHOC** li
 For now just use the same makefile_config.mk configuration for both client and responder that i provide you here to test the library with classical DH.
 
 ## Build and Run
-Before running this example, you should have already run the responder in another terminal.
 ```
 make clean
 make -j
-./build/iniator
+./build/responder
 ```

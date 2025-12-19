@@ -1,0 +1,289 @@
+/*
+   Copyright (c) 2021 Fraunhofer AISEC. See the COPYRIGHT
+   file at the top-level directory of this distribution.
+
+   Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+   http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+   <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
+   option. This file may not be copied, modified, or distributed
+   except according to those terms.
+*/
+
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+extern "C" {
+#include "edhoc.h"
+#include "sock.h"
+#include "edhoc_test_vectors_p256_v16.h"
+}
+#include "cantcoap.h"
+
+#define USE_IPV4
+//#define USE_IPV6
+
+#if defined(FALCON_LEVEL_1) && defined(KYBER_LEVEL_1) && !defined(USE_X5CHAIN)
+uint8_t TEST_VEC_NUM = 7;
+#define PQ_PROPOSAL_1
+#elif defined(FALCON_LEVEL_1) && defined(KYBER_LEVEL_1) && defined(USE_X5CHAIN)
+uint8_t TEST_VEC_NUM = 8;
+#define PQ_PROPOSAL_1
+#elif defined(FALCON_LEVEL_1) && defined(KYBER_LEVEL_3) && !defined(USE_X5CHAIN)
+uint8_t TEST_VEC_NUM = 9;
+#define PQ_PROPOSAL_1
+#elif defined(FALCON_LEVEL_1) && defined(KYBER_LEVEL_3) && defined(USE_X5CHAIN)
+uint8_t TEST_VEC_NUM = 10;
+#define PQ_PROPOSAL_1
+#elif defined(DILITHIUM_LEVEL_2) && defined(KYBER_LEVEL_1) &&                  \
+	!defined(USE_X5CHAIN)
+uint8_t TEST_VEC_NUM = 11;
+#define PQ_PROPOSAL_1
+#elif defined(DILITHIUM_LEVEL_2) && defined(KYBER_LEVEL_1) &&                  \
+	defined(USE_X5CHAIN)
+uint8_t TEST_VEC_NUM = 12;
+#define PQ_PROPOSAL_1
+#elif defined(FALCON_LEVEL_1) && defined(HQC_LEVEL_1) && !defined(USE_X5CHAIN)
+uint8_t TEST_VEC_NUM = 13;
+#define PQ_PROPOSAL_1
+#elif defined(FALCON_LEVEL_1) && defined(BIKE_LEVEL_1) && !defined(USE_X5CHAIN)
+uint8_t TEST_VEC_NUM = 14;
+#define PQ_PROPOSAL_1
+#elif defined(DILITHIUM_LEVEL_2) && defined(BIKE_LEVEL_1) &&                   \
+	!defined(USE_X5CHAIN)
+uint8_t TEST_VEC_NUM = 15;
+#define PQ_PROPOSAL_1
+#elif defined(HAWK_LEVEL_1) && defined(KYBER_LEVEL_1) && !defined(USE_X5CHAIN)
+uint8_t TEST_VEC_NUM = 16;
+#define PQ_PROPOSAL_1
+#elif defined(HAWK_LEVEL_1) && defined(KIBER_LEVEL_1) && defined(USE_X5CHAIN)
+uint8_t TEST_VEC_NUM = 16;
+#define PQ_PROPOSAL_1
+#elif defined(HAETAE_LEVEL_2) && defined(KYBER_LEVEL_1) && !defined(USE_X5CHAIN)
+uint8_t TEST_VEC_NUM = 17;
+#define PQ_PROPOSAL_1
+#elif defined(HAETAE_LEVEL_2) && defined(KIBER_LEVEL_1) && defined(USE_X5CHAIN)
+uint8_t TEST_VEC_NUM = 17;
+#define PQ_PROPOSAL_1
+#elif defined(DH) && !defined(USE_X5CHAIN)
+uint8_t TEST_VEC_NUM = 2;
+//#define USE_RANDOM_EPHEMERAL_DH_KEY
+#elif defined(DH) && defined(USE_X5CHAIN)
+uint8_t TEST_VEC_NUM = 3;
+//#define USE_RANDOM_EPHEMERAL_DH_KEY
+#else
+#error "you must select a correct test combination in makefile_config.mk file"
+#endif
+
+/**
+ * @brief	Initializes sockets for TCP client.
+ * @param
+ * @retval	error code
+ */
+static int start_socket_client(int *sockfd)
+{
+	/*	int err;
+#ifdef USE_IPV4
+	struct sockaddr_in servaddr;
+	const char IPV4_SERVADDR[] = { "127.0.0.1" };
+	//const char IPV4_SERVADDR[] = { "172.31.24.45" };
+	err = sock_init(SOCK_CLIENT, IPV4_SERVADDR, IPv4, &servaddr,
+			sizeof(servaddr), sockfd);
+	if (err < 0) {
+		printf("error during socket initialization (error code: %d)",
+		       err);
+		return -1;
+	}
+#endif
+#ifdef USE_IPV6
+	struct sockaddr_in6 servaddr;
+	const char IPV6_SERVADDR[] = { "2001:db8::1" };
+	err = sock_init(SOCK_CLIENT, IPV6_SERVADDR, IPv6, &servaddr,
+			sizeof(servaddr), sockfd);
+	if (err < 0) {
+		printf("error during socket initialization (error code: %d)",
+		       err);
+		return -1;
+	}
+#endif*/
+	return ok;
+}
+
+enum err ead_process(void *params, struct byte_array *ead13)
+{
+	/*for this sample we are not using EAD*/
+	/*to save RAM we use FEATURES += -DEAD_SIZE=0*/
+	return ok;
+}
+
+/**
+ * @brief	Callback function called inside the frontend when data needs to
+ * 		be send over the network. You should implement the transport here over the open TCP socket
+ *      and send the data contained in the byte_array struct
+ * @param	data pointer to the data that needs to be send
+ */
+enum err tx(void *sock, struct byte_array *data)
+{
+	/*construct a CoAP packet*/
+}
+
+/**
+ * @brief	Callback function called inside the frontend when data needs to
+ * 		be received over the network. You should implement the receive data over the open TCP socket,
+ *      this should wait until data is received and then fill the byte_array struct with the received data
+ * @param	data pointer to the data that needs to be received
+ */
+enum err rx(void *sock, struct byte_array *data)
+{
+	return ok;
+}
+
+int main()
+{
+	int sockfd;
+	BYTE_ARRAY_NEW(prk_exporter, 32, 32);
+	BYTE_ARRAY_NEW(oscore_master_secret, 16, 16);
+	BYTE_ARRAY_NEW(oscore_master_salt, 8, 8);
+	BYTE_ARRAY_NEW(PRK_out, 32, 32);
+	BYTE_ARRAY_NEW(err_msg, 0, 0);
+
+	/* test vector inputs */
+	struct other_party_cred cred_r;
+	struct edhoc_initiator_context c_i;
+
+#ifdef LIBOQS
+	PRINT_MSG("DEFINED LIBOQS\n");
+#else
+	PRINT_MSG("NO DEFINED LIBOQS\n");
+#endif
+	uint8_t vec_num_i = TEST_VEC_NUM - 1;
+	c_i.sock = &sockfd;
+	c_i.c_i.len = test_vectors[vec_num_i].c_i_len;
+	c_i.c_i.ptr = (uint8_t *)test_vectors[vec_num_i].c_i;
+	c_i.method = (enum method_type) * test_vectors[vec_num_i].method;
+	c_i.suites_i.len = test_vectors[vec_num_i].SUITES_I_len;
+	c_i.suites_i.ptr = (uint8_t *)test_vectors[vec_num_i].SUITES_I;
+	c_i.ead_1.len = test_vectors[vec_num_i].ead_1_len;
+	c_i.ead_1.ptr = (uint8_t *)test_vectors[vec_num_i].ead_1;
+	c_i.ead_3.len = test_vectors[vec_num_i].ead_3_len;
+	c_i.ead_3.ptr = (uint8_t *)test_vectors[vec_num_i].ead_3;
+	c_i.id_cred_i.len = test_vectors[vec_num_i].id_cred_i_len;
+	c_i.id_cred_i.ptr = (uint8_t *)test_vectors[vec_num_i].id_cred_i;
+	c_i.cred_i.len = test_vectors[vec_num_i].cred_i_len;
+	c_i.cred_i.ptr = (uint8_t *)test_vectors[vec_num_i].cred_i;
+	c_i.g_x.len = test_vectors[vec_num_i].g_x_raw_len;
+	c_i.g_x.ptr = (uint8_t *)test_vectors[vec_num_i].g_x_raw;
+	c_i.x.len = test_vectors[vec_num_i].x_raw_len;
+	c_i.x.ptr = (uint8_t *)test_vectors[vec_num_i].x_raw;
+	c_i.g_i.len = test_vectors[vec_num_i].g_i_raw_len;
+	c_i.g_i.ptr = (uint8_t *)test_vectors[vec_num_i].g_i_raw;
+	c_i.i.len = test_vectors[vec_num_i].i_raw_len;
+	c_i.i.ptr = (uint8_t *)test_vectors[vec_num_i].i_raw;
+	c_i.sk_i.len = test_vectors[vec_num_i].sk_i_raw_len;
+	c_i.sk_i.ptr = (uint8_t *)test_vectors[vec_num_i].sk_i_raw;
+	c_i.pk_i.len = test_vectors[vec_num_i].pk_i_raw_len;
+	c_i.pk_i.ptr = (uint8_t *)test_vectors[vec_num_i].pk_i_raw;
+
+	cred_r.id_cred.len = test_vectors[vec_num_i].id_cred_r_len;
+	cred_r.id_cred.ptr = (uint8_t *)test_vectors[vec_num_i].id_cred_r;
+	cred_r.cred.len = test_vectors[vec_num_i].cred_r_len;
+	cred_r.cred.ptr = (uint8_t *)test_vectors[vec_num_i].cred_r;
+	/*cred_r.g.len = test_vectors[vec_num_i].g_r_raw_len;
+	cred_r.g.ptr = (uint8_t *)test_vectors[vec_num_i].g_r_raw;*/
+	cred_r.pk.len = test_vectors[vec_num_i].pk_r_raw_len;
+	cred_r.pk.ptr = (uint8_t *)test_vectors[vec_num_i].pk_r_raw;
+	cred_r.ca.len = test_vectors[vec_num_i].ca_r_len;
+	cred_r.ca.ptr = (uint8_t *)test_vectors[vec_num_i].ca_r;
+	cred_r.ca_pk.len = test_vectors[vec_num_i].ca_r_pk_len;
+	cred_r.ca_pk.ptr = (uint8_t *)test_vectors[vec_num_i].ca_r_pk;
+
+	struct cred_array cred_r_array = { .len = 1, .ptr = &cred_r };
+	PRINTF("initiator test vector number %d:", vec_num_i + 1);
+	PRINT_ARRAY("initator cipher suit:", c_i.suites_i.ptr,
+		    c_i.suites_i.len);
+	PRINTF("initiator sk size:%d \n", c_i.sk_i.len);
+	PRINTF("initiator pk size:%d \n", c_i.pk_i.len);
+
+#ifdef USE_RANDOM_EPHEMERAL_DH_KEY
+	uint32_t seed;
+	BYTE_ARRAY_NEW(X_random, 32, 32);
+	BYTE_ARRAY_NEW(G_X_random, 32, 32);
+
+	/*create a random seed*/
+	FILE *fp;
+	fp = fopen("/dev/urandom", "r");
+	uint64_t seed_len = fread((uint8_t *)&seed, 1, sizeof(seed), fp);
+	fclose(fp);
+	PRINT_ARRAY("seed", (uint8_t *)&seed, seed_len);
+
+	/*create ephemeral DH keys from seed*/
+	TRY(ephemeral_dh_key_gen(P256, seed, &X_random, &G_X_random));
+	c_i.g_x.ptr = G_X_random.ptr;
+	c_i.g_x.len = G_X_random.len;
+	c_i.x.ptr = X_random.ptr;
+	c_i.x.len = X_random.len;
+#endif
+	PRINT_ARRAY("secret ephemeral DH key", c_i.g_x.ptr, c_i.g_x.len);
+	PRINT_ARRAY("public ephemeral DH key", c_i.x.ptr, c_i.x.len);
+
+#ifdef TINYCRYPT
+	/* Register RNG function */
+	uECC_set_rng(default_CSPRNG);
+#endif
+
+#ifdef PQ_PROPOSAL_1
+	/*Ephemeral Key generation for KEMs*/
+	PRINTF("test vector number: %d\n", vec_num_i + 1);
+	struct suite suit_in;
+	get_suite((enum suite_label)c_i.suites_i.ptr[c_i.suites_i.len - 1],
+		  &suit_in);
+	PRINTF("INITIATOR SUIT kem: %d, signature %d\n", suit_in.edhoc_ecdh,
+	       suit_in.edhoc_sign)
+	PRINTF("PQ_public buffer size %d\n",
+	       get_kem_pk_len(suit_in.edhoc_ecdh));
+	PRINTF("PQ_secret buffer size %d\n",
+	       get_kem_pk_len(suit_in.edhoc_ecdh));
+	BYTE_ARRAY_NEW(PQ_public_random, get_kem_pk_len(suit_in.edhoc_ecdh),
+		       get_kem_pk_len(suit_in.edhoc_ecdh));
+	BYTE_ARRAY_NEW(PQ_secret_random, get_kem_sk_len(suit_in.edhoc_ecdh),
+		       get_kem_sk_len(suit_in.edhoc_ecdh));
+	TRY(ephemeral_kem_key_gen(suit_in.edhoc_ecdh, &PQ_secret_random,
+				  &PQ_public_random));
+	c_i.g_x.ptr = PQ_public_random.ptr;
+	c_i.g_x.len = PQ_public_random.len;
+	c_i.x.ptr = PQ_secret_random.ptr;
+	c_i.x.len = PQ_secret_random.len;
+	PRINTF("public ephemeral PQ Key size %d\n", c_i.g_x.len);
+	//PRINT_ARRAY("PK eph:",c_i.g_x.ptr,c_i.g_x.len);
+	//PRINT_ARRAY("SK eph:",c_i.x.ptr,c_i.x.len);
+	PRINTF("secret ephemeral PQ Key size %d\n", c_i.x.len);
+
+#endif
+
+	TRY_EXPECT(start_coap_client(&sockfd), 0);
+	TRY(edhoc_initiator_run(&c_i, &cred_r_array, &err_msg, &PRK_out, tx, rx,
+				ead_process));
+
+	PRINT_ARRAY("PRK_out", PRK_out.ptr, PRK_out.len);
+
+	TRY(prk_out2exporter(SHA_256, &PRK_out, &prk_exporter));
+	PRINT_ARRAY("prk_exporter", prk_exporter.ptr, prk_exporter.len);
+
+	TRY(edhoc_exporter(SHA_256, OSCORE_MASTER_SECRET, &prk_exporter,
+			   &oscore_master_secret));
+	PRINT_ARRAY("OSCORE Master Secret", oscore_master_secret.ptr,
+		    oscore_master_secret.len);
+
+	TRY(edhoc_exporter(SHA_256, OSCORE_MASTER_SALT, &prk_exporter,
+			   &oscore_master_salt));
+	PRINT_ARRAY("OSCORE Master Salt", oscore_master_salt.ptr,
+		    oscore_master_salt.len);
+
+	close(sockfd);
+	return 0;
+}
