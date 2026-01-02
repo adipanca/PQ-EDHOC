@@ -28,6 +28,7 @@
 [submodule "externals/pqm4"]
 	path = externals/pqm4
 	url = https://github.com/LPFraile/pqm4.git
+	branch = master
 [submodule "externals/libcoap"]
 	path = externals/libcoap
 	url = https://github.com/obgm/libcoap.git
