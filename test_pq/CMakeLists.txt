@@ -20,6 +20,11 @@ option(USE_SUIT_17 "Enable SUIT 17" OFF)
 option(USE_SUIT_19 "Enable SUIT 19" OFF)
 option(USE_SUIT_20 "Enable SUIT 20" OFF)
 
+if(NOT USE_SUIT_2 AND NOT USE_SUIT_7 AND NOT USE_SUIT_9 AND NOT USE_SUIT_12 AND NOT USE_SUIT_11 AND NOT USE_SUIT_13 AND NOT USE_SUIT_18 AND NOT USE_SUIT_17 AND NOT USE_SUIT_19 AND NOT USE_SUIT_14)
+  message(STATUS "No SUIT selected, defaulting to SUIT 2")
+  set(USE_SUIT_2 ON)
+endif()
+
 if(USE_SUIT_2)
   message(STATUS "SUIT 2 enable")
   FILE(GLOB app_sources
@@ -336,7 +341,26 @@ if(USE_SUIT_13)
 endif()
 
 if(USE_SUIT_14)
+ if(DEFINED USE_CLEAN_IMP)
   FILE(GLOB app_sources
+  *.c
+  edhoc_integration_tests/*.c
+  ../externals/zcbor/src/*.c
+  ../externals/compact25519/src/c25519/*.c
+  ../externals/compact25519/src/*.c
+  #../externals/mbedtls/library/*.c
+  ../externals/tinycrypt/lib/source/*.c
+  ../test_vectors/*.c
+  ../externals/PQClean/crypto_kem/kyber512/clean/*.c
+  ../externals/pqm4/mupq/crypto_sign/hawk512/ref/*.c
+    ../externals/pqm4/common/randombytes.c
+  ../externals/pqm4/common/keccakf1600.S
+  ../externals/pqm4/common/crypto_hashblocks_sha512*.*
+  ../externals/pqm4/common/aes.*
+  ../externals/pqm4/mupq/common/fips202.c
+  )
+else()
+ FILE(GLOB app_sources
   *.c
   edhoc_integration_tests/*.c
   ../externals/zcbor/src/*.c
@@ -355,9 +379,27 @@ if(USE_SUIT_14)
   ../externals/pqm4/common/aes.*
   ../externals/pqm4/mupq/common/fips202.c
   )
-
+  endif()
   target_include_directories(app PRIVATE $ENV{ZEPHYR_BASE}/include)
+   if(DEFINED USE_CLEAN_IMP)
   target_include_directories(app PRIVATE 
+    $ENV{ZEPHYR_BASE}/subsys/net/ip
+    .
+    #../../common
+    ../inc
+    ../test_vectors
+    ../externals/zcbor/include 
+    #../externals/mbedtls/library 
+    #../externals/mbedtls/include 
+    #../externals/mbedtls/include/mbedtls 
+    #../externals/mbedtls/include/psa
+    ../externals/tinycrypt/lib/include
+    ../externals/PQClean/crypto_kem/kyber512/clean
+    ../externals/pqm4/mupq/crypto_sign/hawk512/ref
+    ../externals/pqm4/mupq/common
+    ../externals/pqm4/libopencm3/include)
+    else()
+     target_include_directories(app PRIVATE 
     $ENV{ZEPHYR_BASE}/subsys/net/ip
     .
     #../../common
@@ -373,6 +415,7 @@ if(USE_SUIT_14)
     ../externals/pqm4/mupq/crypto_sign/hawk512/ref
     ../externals/pqm4/mupq/common
     ../externals/pqm4/libopencm3/include)
+   endif()  
   target_compile_definitions(app PRIVATE USE_SUIT_14)
 endif()
 if(USE_SUIT_15)
@@ -646,7 +689,7 @@ target_sources(app PRIVATE ${app_sources})
 add_definitions(
   #-DMBEDTLS_CONFIG_FILE="mbedtls_config_uoscore_uedhoc.h"
   -DUNIT_TEST
-  #-DDEBUG_PRINT
+  -DDEBUG_PRINT
   -DZCBOR_CANONICAL
   #-DMEASURE_LATENCY_ON
   #-DREPORT_STACK_USAGE
@@ -654,7 +697,6 @@ add_definitions(
   #-DMEASURE_LATENCY_PER_THREAD
   #-DMEASURE_CLK
 )
-
 if(DEFINED REPORT_STACK_USAGE)
 add_definitions(-DREPORT_STACK_USAGE=${REPORT_STACK_USAGE})
 endif()
@@ -696,6 +738,11 @@ endif()
 if(DEFINED USE_TEST_EDHOC)
   add_definitions(-DUSE_TEST_EDHOC=${USE_TEST_EDHOC})
   message(STATUS "USE_TEST_EDHOC is defined")
+endif()
+
+if(DEFINED USE_CLEAN_IMP)
+  add_definitions(-DUSE_CLEAN_IMP=${USE_CLEAN_IMP})
+  message(STATUS "USE_CLEAN_IMP is defined")
 endif()
 
 if(DEFINED USE_TEST_INITIATOR)

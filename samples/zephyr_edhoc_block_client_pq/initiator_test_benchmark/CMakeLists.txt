@@ -7,11 +7,14 @@ project(initiator_test_benchmark)
 option(USE_SUIT_2 "Enable SUIT 2" OFF)
 option(USE_SUIT_7 "Enable SUIT 7" OFF)
 option(USE_SUIT_12 "Enable SUIT 12" OFF)
-option(USE_SUIT_14 "Enable SUIT 12" OFF)
-option(USE_SUIT_15 "Enable SUIT 12" OFF)
+option(USE_SUIT_14 "Enable SUIT 14" OFF)
+option(USE_SUIT_15 "Enable SUIT 15" OFF)
 #option(USE_X5T "Enable X5T" ON)
 #option(USE_X5CHAIN "Enable X5CHAIN" OFF)
-
+if(NOT USE_SUIT_2 AND NOT USE_SUIT_7  AND NOT USE_SUIT_12 AND NOT USE_SUIT_14 AND NOT USE_SUIT_15 )
+  message(STATUS "No SUIT selected, defaulting to SUIT 2")
+  set(USE_SUIT_2 ON)
+endif()
 if(USE_SUIT_2)
 FILE(GLOB app_sources 
 	src/*.c
@@ -146,44 +149,83 @@ endif()
 
 
 
-
 if(USE_SUIT_14)
-FILE(GLOB app_sources 
-	src/*.c
-	../../common/sock_ipv6.c
-	../../../externals/zcbor/src/*.c
-	../../../externals/compact25519/src/c25519/*.c
-	../../../externals/compact25519/src/*.c
-	#../../../externals/mbedtls/library/*.c
-	../../../externals/pqm4/crypto_kem/kyber512/m4fstack/*.c
-	../../../externals/pqm4/crypto_kem/kyber512/m4fstack/*.i
-	../../../externals/pqm4/crypto_kem/kyber512/m4fstack/*.S
-	../../../externals/pqm4/mupq/crypto_sign/hawk512/ref/*.c
-	../../../externals/pqm4/common/randombytes.c
-	../../../externals/pqm4/common/keccakf1600.S
-	../../../externals/pqm4/common/crypto_hashblocks_sha512*.*
-	../../../externals/pqm4/common/aes.*
-	../../../externals/pqm4/mupq/common/fips202.c)
-
-target_include_directories(app PRIVATE $ENV{ZEPHYR_BASE}/include)
-target_include_directories(app PRIVATE 
-	$ENV{ZEPHYR_BASE}/subsys/net/ip
-	.
-	../../common
-	../../../inc
-	../../../test_vectors
-	../../../externals/zcbor/include 
-	#../../../externals/mbedtls/library 
-	#../../../externals/mbedtls/include 
-	#../../../externals/mbedtls/include/mbedtls 
-	#../../../externals/mbedtls/include/psa
-	../../../externals/pqm4/crypto_kem/kyber512/m4fstack
-    ../../../externals/pqm4/mupq/crypto_sign/hawk512/ref
-	../../../externals/pqm4/mupq/common
-	../../../externals/pqm4/libopencm3/include)
-target_compile_definitions(app PRIVATE USE_SUIT_14)
-add_compile_definitions(CONFIG_COAP_CLIENT_STACK_SIZE=2024)
-	#target_include_directories(app PRIVATE ${ZEPHYR_BASE}/include/)
+ if(DEFINED USE_CLEAN_IMP)
+  FILE(GLOB app_sources
+  *.c
+  edhoc_integration_tests/*.c
+  ../externals/zcbor/src/*.c
+  ../externals/compact25519/src/c25519/*.c
+  ../externals/compact25519/src/*.c
+  #../externals/mbedtls/library/*.c
+  ../externals/tinycrypt/lib/source/*.c
+  ../test_vectors/*.c
+  ../externals/PQClean/crypto_kem/kyber512/clean/*.c
+  ../externals/pqm4/mupq/crypto_sign/hawk512/ref/*.c
+    ../externals/pqm4/common/randombytes.c
+  ../externals/pqm4/common/keccakf1600.S
+  ../externals/pqm4/common/crypto_hashblocks_sha512*.*
+  ../externals/pqm4/common/aes.*
+  ../externals/pqm4/mupq/common/fips202.c
+  )
+else()
+ FILE(GLOB app_sources
+  *.c
+  edhoc_integration_tests/*.c
+  ../externals/zcbor/src/*.c
+  ../externals/compact25519/src/c25519/*.c
+  ../externals/compact25519/src/*.c
+  #../externals/mbedtls/library/*.c
+  ../externals/tinycrypt/lib/source/*.c
+  ../test_vectors/*.c
+  ../externals/pqm4/crypto_kem/kyber512/m4fstack/*.c
+  ../externals/pqm4/crypto_kem/kyber512/m4fstack/*.i
+  ../externals/pqm4/crypto_kem/kyber512/m4fstack/*.S
+  ../externals/pqm4/mupq/crypto_sign/hawk512/ref/*.c
+  ../externals/pqm4/common/randombytes.c
+  ../externals/pqm4/common/keccakf1600.S
+  ../externals/pqm4/common/crypto_hashblocks_sha512*.*
+  ../externals/pqm4/common/aes.*
+  ../externals/pqm4/mupq/common/fips202.c
+  )
+  endif()
+  target_include_directories(app PRIVATE $ENV{ZEPHYR_BASE}/include)
+   if(DEFINED USE_CLEAN_IMP)
+  target_include_directories(app PRIVATE 
+    $ENV{ZEPHYR_BASE}/subsys/net/ip
+    .
+    #../../common
+    ../inc
+    ../test_vectors
+    ../externals/zcbor/include 
+    #../externals/mbedtls/library 
+    #../externals/mbedtls/include 
+    #../externals/mbedtls/include/mbedtls 
+    #../externals/mbedtls/include/psa
+    ../externals/tinycrypt/lib/include
+    ../externals/PQClean/crypto_kem/kyber512/clean
+    ../externals/pqm4/mupq/crypto_sign/hawk512/ref
+    ../externals/pqm4/mupq/common
+    ../externals/pqm4/libopencm3/include)
+    else()
+     target_include_directories(app PRIVATE 
+    $ENV{ZEPHYR_BASE}/subsys/net/ip
+    .
+    #../../common
+    ../inc
+    ../test_vectors
+    ../externals/zcbor/include 
+    #../externals/mbedtls/library 
+    #../externals/mbedtls/include 
+    #../externals/mbedtls/include/mbedtls 
+    #../externals/mbedtls/include/psa
+    ../externals/tinycrypt/lib/include
+    ../externals/pqm4/crypto_kem/kyber512/m4fstack
+    ../externals/pqm4/mupq/crypto_sign/hawk512/ref
+    ../externals/pqm4/mupq/common
+    ../externals/pqm4/libopencm3/include)
+   endif()  
+  target_compile_definitions(app PRIVATE USE_SUIT_14)
 endif()
 
 if(USE_SUIT_15)
@@ -234,7 +276,7 @@ target_sources(app PRIVATE ${ZEPHYR_BASE}/subsys/net/lib/coap/coap_client.c)
 target_sources(app PRIVATE ${ZEPHYR_BASE}/subsys/net/lib/coap/coap.c)
 
 add_definitions(
-	-DMBEDTLS_CONFIG_FILE="mbedtls_config_uoscore_uedhoc.h"
+	#-DMBEDTLS_CONFIG_FILE="mbedtls_config_uoscore_uedhoc.h"
 	#-DDEBUG_PRINT
 	-DZCBOR_CANONICAL
 	#-DUSE_X5CHAIN
@@ -256,6 +298,11 @@ endif()
 
 if(DEFINED POWER_MEASUREMENTS)
 add_definitions(-DPOWER_MEASUREMENTS=${POWER_MEASUREMENTS})
+endif()
+
+if(DEFINED USE_CLEAN_IMP)
+  add_definitions(-DUSE_CLEAN_IMP=${USE_CLEAN_IMP})
+  message(STATUS "USE_CLEAN_IMP is defined")
 endif()
 #if(USE_X5CHAIN)
 #add_definitions(

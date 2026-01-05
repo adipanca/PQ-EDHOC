@@ -98,6 +98,10 @@ FLAGS
 ```bash
 -DUSE_X5T=1 
 ```
+- Select Clean Software implementations 
+```bash
+-DUSE_CLEAN_IMP=1
+```
 - Select the cipher suit under test and the corresponding features in the makefile_config.mk
 Cipher suit 2 ```-DUSE_SUIT_2=ON``` with
 ```

@@ -40,10 +40,12 @@ uint8_t TEST_VEC_NUM = 9;
 #elif defined(FALCON_LEVEL_1) && defined(KYBER_LEVEL_3) && defined(USE_X5CHAIN)
 uint8_t TEST_VEC_NUM = 10;
 #define PQ_PROPOSAL_1
-#elif defined(DILITHIUM_LEVEL_2) && defined(KYBER_LEVEL_1) && !defined(USE_X5CHAIN)
+#elif defined(DILITHIUM_LEVEL_2) && defined(KYBER_LEVEL_1) &&                  \
+	!defined(USE_X5CHAIN)
 uint8_t TEST_VEC_NUM = 11;
 #define PQ_PROPOSAL_1
-#elif defined(DILITHIUM_LEVEL_2) && defined(KYBER_LEVEL_1) && defined(USE_X5CHAIN)
+#elif defined(DILITHIUM_LEVEL_2) && defined(KYBER_LEVEL_1) &&                  \
+	defined(USE_X5CHAIN)
 uint8_t TEST_VEC_NUM = 12;
 #define PQ_PROPOSAL_1
 #elif defined(FALCON_LEVEL_1) && defined(HQC_LEVEL_1) && !defined(USE_X5CHAIN)
@@ -52,7 +54,8 @@ uint8_t TEST_VEC_NUM = 13;
 #elif defined(FALCON_LEVEL_1) && defined(BIKE_LEVEL_1) && !defined(USE_X5CHAIN)
 uint8_t TEST_VEC_NUM = 14;
 #define PQ_PROPOSAL_1
-#elif defined(DILITHIUM_LEVEL_2) && defined(BIKE_LEVEL_1) && !defined(USE_X5CHAIN)
+#elif defined(DILITHIUM_LEVEL_2) && defined(BIKE_LEVEL_1) &&                   \
+	!defined(USE_X5CHAIN)
 uint8_t TEST_VEC_NUM = 15;
 #define PQ_PROPOSAL_1
 #elif defined(HAWK_LEVEL_1) && defined(KYBER_LEVEL_1) && !defined(USE_X5CHAIN)
@@ -66,14 +69,13 @@ uint8_t TEST_VEC_NUM = 17;
 #define PQ_PROPOSAL_1
 #elif defined(DH) && !defined(USE_X5CHAIN)
 uint8_t TEST_VEC_NUM = 2;
-#define USE_RANDOM_EPHEMERAL_DH_KEY 
+#define USE_RANDOM_EPHEMERAL_DH_KEY
 #elif defined(DH) && defined(USE_X5CHAIN)
 uint8_t TEST_VEC_NUM = 3;
-#define USE_RANDOM_EPHEMERAL_DH_KEY 
+#define USE_RANDOM_EPHEMERAL_DH_KEY
 #else
 #error "you must select a correct test combination in makefile_config.mk file"
 #endif
-
 
 CoapPDU *txPDU = new CoapPDU();
 
@@ -223,7 +225,6 @@ int main()
 	struct other_party_cred cred_i;
 	struct edhoc_responder_context c_r;
 
-	
 	uint8_t vec_num_i = TEST_VEC_NUM - 1;
 
 	TRY_EXPECT(start_coap_server(&sockfd), 0);
@@ -269,12 +270,13 @@ int main()
 
 	struct cred_array cred_i_array = { .len = 1, .ptr = &cred_i };
 	//get_suite(enum suite_label label, struct suite *suite)
-    PRINTF("test vector number: %d\n", vec_num_i+1);
+	PRINTF("test vector number: %d\n", vec_num_i + 1);
 	struct suite suit_in;
 	get_suite((enum suite_label)c_r.suites_r.ptr[c_r.suites_r.len - 1],
-		      &suit_in);
+		  &suit_in);
 	//PRINT_ARRAY("cipher suit:", c_r.suites_r.ptr,c_r.suites_r.len);
-	PRINTF("INITIATOR SUIT kem: %d, signature %d\n",suit_in.edhoc_ecdh,suit_in.edhoc_sign)
+	PRINTF("INITIATOR SUIT kem: %d, signature %d\n", suit_in.edhoc_ecdh,
+	       suit_in.edhoc_sign)
 	PRINTF("responder pk size: %d \n", c_r.pk_r.len);
 	PRINTF("responder sk size: %d \n", c_r.sk_r.len);
 #ifdef USE_RANDOM_EPHEMERAL_DH_KEY
@@ -287,7 +289,8 @@ int main()
 	c_r.y.len = Y_random.len;
 #endif
 #ifdef PQ_PROPOSAL_1
-	BYTE_ARRAY_NEW(G_Y_ENC, get_kem_cc_len(suit_in.edhoc_ecdh), get_kem_cc_len(suit_in.edhoc_ecdh));
+	BYTE_ARRAY_NEW(G_Y_ENC, get_kem_cc_len(suit_in.edhoc_ecdh),
+		       get_kem_cc_len(suit_in.edhoc_ecdh));
 	//BYTE_ARRAY_NEW(PQ_secret_random, get_kem_sk_len(suit_in.edhoc_ecdh), get_kem_sk_len(suit_in.edhoc_ecdh));
 	c_r.g_y.ptr = G_Y_ENC.ptr;
 	c_r.g_y.len = G_Y_ENC.len;
@@ -306,15 +309,14 @@ int main()
 		fclose(fp);
 		PRINT_MSG("Responder ready to receive EDHOC DH request\n")
 		PRINT_ARRAY("seed", (uint8_t *)&seed, seed_len);
-        c_r.g_y.len = G_Y_random.len;
+		c_r.g_y.len = G_Y_random.len;
 		c_r.y.len = Y_random.len;
 		TRY(ephemeral_dh_key_gen(P256, seed, &Y_random, &G_Y_random));
-	
+		PRINT_ARRAY("public ephemeral key", c_r.g_y.ptr, c_r.g_y.len);
+		PRINT_ARRAY("secret ephemeral key", c_r.y.ptr, c_r.y.len);
+
 #endif
 
-	PRINT_ARRAY("public ephemeral DH key", c_r.g_y.ptr,
-			    c_r.g_y.len);
-	PRINT_ARRAY("secret ephemeral DH key", c_r.y.ptr, c_r.y.len);
 #ifdef TINYCRYPT
 		/* Register RNG function */
 		uECC_set_rng(default_CSPRNG);

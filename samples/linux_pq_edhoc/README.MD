@@ -14,7 +14,7 @@ The repository includes submodules. Clone it using the `--recurse-submodules` op
  mkdir build
  cd build
  cmake -G Ninja .. -DOQS_USE_OPENSSL=OFF
- Ninja 
+ ninja 
 ```
 
 ## Configuring

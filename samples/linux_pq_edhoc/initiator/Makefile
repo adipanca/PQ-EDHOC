@@ -141,7 +141,14 @@ MUPQ_DIR := ${ROOT_DIR}/externals/pqm4/mupq/crypto_sign/hawk512/ref
 MUPQ_SOURCES :=  $(wildcard ${MUPQ_DIR}/*.c) ${ROOT_DIR}/externals/pqm4/mupq/common/fips202.c ${ROOT_DIR}/externals/pqm4/mupq/common/keccakf1600.c ${ROOT_DIR}/externals/pqm4/mupq/pqclean/common/randombytes.c
 MUPQ_INCLUDES := -I../../../externals/pqm4/mupq/crypto_sign/hawk512/ref -I../../../externals/pqm4/mupq/common
 endif
+ifeq ($(findstring PQCLEAN,$(CRYPTO_ENGINE)),PQCLEAN)
+ifeq ($(findstring KYBER_LEVEL_1,$(EXTENDED_CFLAGS)),KYBER_LEVEL_1)
+PQCLEAN_DIR := ${ROOT_DIR}/externals/PQClean/crypto_kem/kyber512/clean
+PQCLEAN_SOURCES := $(wildcard ../../../externals/PQClean/crypto_kem/kyber512/clean/*.c)
+PQCLEAN_INCLUDES := -I../../../externals/PQClean/crypto_kem/kyber512/clean
 
+endif
+endif
 CANTCOAP_DIR :=  ${ROOT_DIR}/externals/cantcoap
 CANTCOAP_SOURCES := ${CANTCOAP_DIR}/cantcoap.cpp
 CANTCOAP_INCLUDES := -I${CANTCOAP_DIR}
@@ -157,6 +164,7 @@ SOURCES += ${ZCBOR_C_SOURCES}
 SOURCES += ${COMMON_SOURCES}
 SOURCES += ${CANTCOAP_SOURCES}
 SOURCES += ${MUPQ_SOURCES}
+SOURCES += ${PQCLEAN_SOURCES}
 OBJECTS := $(patsubst ${ROOT_DIR}/%.cpp,${BUILD_DIR}/%.o,$(patsubst ${ROOT_DIR}/%.c,${BUILD_DIR}/%.o,$(SOURCES)))
 INCLUDES := ${TINYCRYPT_INCLUDES}
 INCLUDES += ${COMPACT25519_INCLUDES}
@@ -167,6 +175,7 @@ INCLUDES += ${COMMON_INCLUDES}
 INCLUDES += ${INITIATOR_INCLUDES}
 INCLUDES += ${CANTCOAP_INCLUDES}
 INCLUDES += ${MUPQ_INCLUDES}
+INCLUDES += ${PQCLEAN_INCLUDES}
 
 ###########################################
 # default action: build all
