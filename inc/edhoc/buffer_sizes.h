@@ -99,7 +99,7 @@
 #endif
 #endif
 
-#if defined(PQMM4) || defined(PQCLEAN)
+#if defined(PQM4) || defined(PQCLEAN)
 #include <api.h>
 
 #ifdef HQC_LEVEL_1
