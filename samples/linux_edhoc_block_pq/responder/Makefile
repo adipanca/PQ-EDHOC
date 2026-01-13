@@ -89,6 +89,14 @@ C_SOURCES += ../../../externals/pqm4/mupq/common/keccakf1600.c
 C_SOURCES += ../../../externals/pqm4/mupq/pqclean/common/randombytes.c
 endif
 
+ifeq ($(findstring PQCLEAN,$(CRYPTO_ENGINE)),PQCLEAN)
+ifeq ($(findstring KYBER_LEVEL_1,$(FEATURES)),KYBER_LEVEL_1)
+C_SOURCES += $(wildcard ../../../externals/PQClean/crypto_kem/kyber512/clean/*.c)
+endif
+endif
+
+
+
 # C includes
 C_INCLUDES += -I../../../inc/ 
 C_INCLUDES += -I../../common/
@@ -126,6 +134,16 @@ endif
 ifeq ($(findstring HAETAE_LEVEL_2,$(FEATURES)),HAETAE_LEVEL_2)
 C_INCLUDES += -I../../../externals/pqm4/mupq/crypto_sign/haetae2/ref
 C_INCLUDES += -I../../../externals/pqm4/mupq/common
+endif
+
+ifeq ($(findstring PQCLEAN,$(EXTENDED_CFLAGS)),PQCLEAN)
+ifeq ($(findstring HQC_LEVEL_1,$(EXTENDED_CFLAGS)),HQC_LEVEL_1)
+C_INCLUDES += -Iexternals/PQClean/crypto_kem/hqc-128/clean
+endif
+
+ifeq ($(findstring KYBER_LEVEL_1,$(EXTENDED_CFLAGS)),KYBER_LEVEL_1)
+C_INCLUDES += -Iexternals/PQClean/crypto_kem/kyber512/clean
+endif
 endif
 
 

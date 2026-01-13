@@ -30,8 +30,8 @@ extern "C" {
 #include "coap3/coap.h"
 
 /*Define IPv4 or IPv6*/
-//#define USE_IPV4
-#define USE_IPV6
+#define USE_IPV4
+//#define USE_IPV6
 
 #ifdef USE_COAP_BLOCK_SIZE
 #define COAP_MAX_BLOCK_SIZE USE_COAP_BLOCK_SIZE
@@ -55,11 +55,13 @@ uint8_t TEST_VEC_NUM = 9;
 uint8_t TEST_VEC_NUM = 10;
 #define PQ_PROPOSAL_1
 #define MAX_PAYLOAD_SIZE 3500
-#elif defined(DILITHIUM_LEVEL_2) && defined(KYBER_LEVEL_1) && !defined(USE_X5CHAIN)
+#elif defined(DILITHIUM_LEVEL_2) && defined(KYBER_LEVEL_1) &&                  \
+	!defined(USE_X5CHAIN)
 uint8_t TEST_VEC_NUM = 11;
 #define PQ_PROPOSAL_1
 #define MAX_PAYLOAD_SIZE 3209
-#elif defined(DILITHIUM_LEVEL_2) && defined(KYBER_LEVEL_1) && defined(USE_X5CHAIN)
+#elif defined(DILITHIUM_LEVEL_2) && defined(KYBER_LEVEL_1) &&                  \
+	defined(USE_X5CHAIN)
 uint8_t TEST_VEC_NUM = 12;
 #define PQ_PROPOSAL_1
 #define MAX_PAYLOAD_SIZE 7104
@@ -71,7 +73,8 @@ uint8_t TEST_VEC_NUM = 13;
 uint8_t TEST_VEC_NUM = 14;
 #define PQ_PROPOSAL_1
 #define MAX_PAYLOAD_SIZE 7000
-#elif defined(DILITHIUM_LEVEL_2) && defined(BIKE_LEVEL_1) && !defined(USE_X5CHAIN)
+#elif defined(DILITHIUM_LEVEL_2) && defined(BIKE_LEVEL_1) &&                   \
+	!defined(USE_X5CHAIN)
 uint8_t TEST_VEC_NUM = 15;
 #define PQ_PROPOSAL_1
 #define MAX_PAYLOAD_SIZE 7000
@@ -94,11 +97,11 @@ uint8_t TEST_VEC_NUM = 17;
 #elif defined(DH) && !defined(USE_X5CHAIN)
 uint8_t TEST_VEC_NUM = 2;
 #define USE_RANDOM_EPHEMERAL_DH_KEY
-#define MAX_PAYLOAD_SIZE 800 
+#define MAX_PAYLOAD_SIZE 800
 #elif defined(DH) && defined(USE_X5CHAIN)
 uint8_t TEST_VEC_NUM = 3;
 #define MAX_PAYLOAD_SIZE 800
-#define USE_RANDOM_EPHEMERAL_DH_KEY 
+#define USE_RANDOM_EPHEMERAL_DH_KEY
 #else
 #error "you must select a correct test combination in makefile_config.mk file"
 #endif
@@ -112,8 +115,6 @@ uint8_t TEST_VEC_NUM = 3;
 #define COAP_CLIENT_URI "coap://2001:db8::2:5683/edhoc"
 #endif
 
-
-
 static uint8_t my_buffer[MAX_PAYLOAD_SIZE];
 static int my_buffer_len = 0;
 static uint8_t my_buffer2[MAX_PAYLOAD_SIZE];
@@ -123,15 +124,14 @@ coap_endpoint_t *endpoint;
 coap_resource_t *resource;
 coap_address_t server_addr;
 
-
 sem_t semaphore;
 sem_t semaphore2;
 sem_t semaphore_finish;
 uint8_t rx_msg_num = 0;
 
-void printsuits(int num){
-	switch (num)
-	{
+void printsuits(int num)
+{
+	switch (num) {
 	case KYBER_LEVEL1:
 		printf("KEM: Kyber Level 1\n");
 		break;
@@ -146,7 +146,7 @@ void printsuits(int num){
 		break;
 	case HQC_LEVEL1:
 		printf("Signature: HQC Level 1\n");
-		break;			
+		break;
 	case FALCON_LEVEL1:
 		printf("Signature: Falcon Level 1\n");
 		break;
@@ -160,10 +160,11 @@ void printsuits(int num){
 		break;
 	}
 }
-static void
-hnd_post(coap_resource_t *resource, coap_session_t *session, const coap_pdu_t *request,
-    const coap_string_t *query, coap_pdu_t *response) {
-  	size_t size;
+static void hnd_post(coap_resource_t *resource, coap_session_t *session,
+		     const coap_pdu_t *request, const coap_string_t *query,
+		     coap_pdu_t *response)
+{
+	size_t size;
 	const uint8_t *data;
 	size_t offset;
 	size_t total;
@@ -180,97 +181,97 @@ hnd_post(coap_resource_t *resource, coap_session_t *session, const coap_pdu_t *r
 	my_buffer_len = size;
 
 	//PRINTF("RX MSG size %d\n",my_buffer_len);
-    sem_post(&semaphore2);
-	if(rx_msg_num == 1){
-		
+	sem_post(&semaphore2);
+	if (rx_msg_num == 1) {
 		sem_wait(&semaphore);
-	    
-	    //PRINTF("TX MSG1 (size %d)\n",my_buffer_len2);
-	
-		coap_pdu_set_code(response,COAP_RESPONSE_CODE_CHANGED);
-	
-  
-    	/* Add the MSG2 received in the request payload */
-    	coap_add_data_large_response(resource, session, request, response, query, COAP_MEDIATYPE_TEXT_PLAIN, -1, 0,
-                                my_buffer_len2,my_buffer2, NULL, NULL);
 
-		//PRINT_MSG("Waiting for the MSG2 .........\n");							
-	}else{
+		//PRINTF("TX MSG1 (size %d)\n",my_buffer_len2);
+
+		coap_pdu_set_code(response, COAP_RESPONSE_CODE_CHANGED);
+
+		/* Add the MSG2 received in the request payload */
+		coap_add_data_large_response(resource, session, request,
+					     response, query,
+					     COAP_MEDIATYPE_TEXT_PLAIN, -1, 0,
+					     my_buffer_len2, my_buffer2, NULL,
+					     NULL);
+
+		//PRINT_MSG("Waiting for the MSG2 .........\n");
+	} else {
 		//PRINT_MSG(" Sending ACK for MSG3 ...\n");
 		rx_msg_num = 0;
-		coap_pdu_set_code(response,COAP_RESPONSE_CODE_CHANGED);
-	
-	}	
- }
-
-enum err tx(void* sock,struct byte_array *data)
-{
-  // PRINT_MSG("in TX\n");
-   memcpy(my_buffer2,data->ptr,data->len);
-   my_buffer_len2 = data->len;
-   sem_post(&semaphore);
-   return ok;
+		coap_pdu_set_code(response, COAP_RESPONSE_CODE_CHANGED);
+	}
 }
 
-enum err rx(void* sock, struct byte_array *data) {
-	//PRINT_MSG("In RX\n");	
+enum err tx(void *sock, struct byte_array *data)
+{
+	// PRINT_MSG("in TX\n");
+	memcpy(my_buffer2, data->ptr, data->len);
+	my_buffer_len2 = data->len;
+	sem_post(&semaphore);
+	return ok;
+}
+
+enum err rx(void *sock, struct byte_array *data)
+{
+	//PRINT_MSG("In RX\n");
 	sem_wait(&semaphore2);
-	memcpy(data->ptr,my_buffer,my_buffer_len);
+	memcpy(data->ptr, my_buffer, my_buffer_len);
 	data->len = my_buffer_len;
 	return ok;
-  
-} 
+}
 /* Function to set up the CoAP server*/
 int setup_server(void)
 {
-
-    // Initialize CoAP library
+	// Initialize CoAP library
 	PRINT_MSG("--------------- PQ EDHOC SERVER SETUP ---------------\n");
-    coap_startup();
-    // Create CoAP context
-    ctx = coap_new_context(NULL);
-    if (!ctx) {
-        fprintf(stderr, "Failed to create CoAP context\n");
-        return -1;
-    }
-    
-	coap_context_set_block_mode(ctx,  COAP_BLOCK_USE_LIBCOAP | COAP_BLOCK_SINGLE_BODY );
-	
-	if(coap_context_set_max_block_size(ctx,COAP_MAX_BLOCK_SIZE)==1){
-		PRINTF("COAP Block Size: %zu\n",COAP_MAX_BLOCK_SIZE);
+	coap_startup();
+	// Create CoAP context
+	ctx = coap_new_context(NULL);
+	if (!ctx) {
+		fprintf(stderr, "Failed to create CoAP context\n");
+		return -1;
 	}
-	else{
+
+	coap_context_set_block_mode(ctx, COAP_BLOCK_USE_LIBCOAP |
+						 COAP_BLOCK_SINGLE_BODY);
+
+	if (coap_context_set_max_block_size(ctx, COAP_MAX_BLOCK_SIZE) == 1) {
+		PRINTF("COAP Block Size: %zu\n", COAP_MAX_BLOCK_SIZE);
+	} else {
 		PRINT_MSG("Erros in set max block size\n");
 	}
 
-    // Set up server address
-    coap_address_init(&server_addr);
-	#ifdef USE_IPV4
-    server_addr.addr.sin.sin_family = AF_INET;
-    server_addr.addr.sin.sin_port = htons(5683); // Standard CoAP port
-    server_addr.addr.sin.sin_addr.s_addr = inet_addr("127.0.0.1"); // Server IPv4 address
-	#endif
-	#ifdef USE_IPV6
+	// Set up server address
+	coap_address_init(&server_addr);
+#ifdef USE_IPV4
+	server_addr.addr.sin.sin_family = AF_INET;
+	server_addr.addr.sin.sin_port = htons(5683); // Standard CoAP port
+	server_addr.addr.sin.sin_addr.s_addr =
+		inet_addr("127.0.0.1"); // Server IPv4 address
+#endif
+#ifdef USE_IPV6
 	server_addr.addr.sin6.sin6_family = AF_INET6;
-    server_addr.addr.sin6.sin6_port = htons(5683); // Standard CoAP port
-    inet_pton(AF_INET6, SERVER_ADDR, &server_addr.addr.sin6.sin6_addr);
-    #endif
-    // Create CoAP endpoint
-	#ifdef USE_TCP
+	server_addr.addr.sin6.sin6_port = htons(5683); // Standard CoAP port
+	inet_pton(AF_INET6, SERVER_ADDR, &server_addr.addr.sin6.sin6_addr);
+#endif
+	// Create CoAP endpoint
+#ifdef USE_TCP
 	PRINT_MSG("Transport layer: TCP\n");
-    endpoint = coap_new_endpoint(ctx, &server_addr, COAP_PROTO_TCP);
-    #else 
+	endpoint = coap_new_endpoint(ctx, &server_addr, COAP_PROTO_TCP);
+#else
 	PRINT_MSG("Transport layer: UDP\n");
 	endpoint = coap_new_endpoint(ctx, &server_addr, COAP_PROTO_UDP);
-	#endif
+#endif
 	if (!endpoint) {
-        fprintf(stderr, "Failed to create CoAP endpoint\n");
-        coap_free_context(ctx);
-        return -1;
-    }
-	
+		fprintf(stderr, "Failed to create CoAP endpoint\n");
+		coap_free_context(ctx);
+		return -1;
+	}
+
 	// Create the CoAP resource
-	resource =  coap_resource_init(coap_make_str_const("edhoc"), 0);
+	resource = coap_resource_init(coap_make_str_const("edhoc"), 0);
 	if (!resource) {
 		fprintf(stderr, "Cannot create resource\n");
 		coap_free_context(ctx);
@@ -282,20 +283,18 @@ int setup_server(void)
 
 	// Add the resource to the context
 	coap_add_resource(ctx, resource);
-// Main loop to handle incoming requests
+	// Main loop to handle incoming requests
 	while (1) {
-	coap_io_process(ctx, COAP_IO_WAIT);
+		coap_io_process(ctx, COAP_IO_WAIT);
 	}
 
 	// Clean up
 	PRINT_MSG("GO TO FREE CONTEXTS\n");
 	coap_free_context(ctx);
 	coap_cleanup();
-	
-	
-    return 0;
-}
 
+	return 0;
+}
 
 enum err ead_process(void *params, struct byte_array *ead13)
 {
@@ -304,13 +303,13 @@ enum err ead_process(void *params, struct byte_array *ead13)
 	return ok;
 }
 
-void * edhoc_responder_init(void *arg)
+void *edhoc_responder_init(void *arg)
 {
 	int sockfd;
 	uint8_t prk_ex[32];
 	uint8_t oscore_secret[16];
 	uint8_t oscore_salt[8];
-	uint8_t PRK[32];	
+	uint8_t PRK[32];
 	uint8_t err[0];
 	byte_array prk_exporter;
 	prk_exporter.ptr = prk_ex;
@@ -322,17 +321,16 @@ void * edhoc_responder_init(void *arg)
 	PRK_out.ptr = PRK;
 	PRK_out.len = 32;
 	byte_array oscore_master_secret;
-    oscore_master_secret.ptr = oscore_secret;
+	oscore_master_secret.ptr = oscore_secret;
 	oscore_master_secret.len = 16;
 
 	byte_array oscore_master_salt;
-    oscore_master_salt.ptr = oscore_salt;
+	oscore_master_salt.ptr = oscore_salt;
 	oscore_master_salt.len = 8;
-	
+
 	/* test vector inputs */
 	struct other_party_cred cred_i;
 	struct edhoc_responder_context c_r;
-
 
 	uint8_t vec_num_i = TEST_VEC_NUM - 1;
 
@@ -387,7 +385,7 @@ void * edhoc_responder_init(void *arg)
 	byte_array G_Y_random;
 	G_Y_random.ptr = GY;
 	G_Y_random.len = 32;
-	
+
 	c_r.g_y.ptr = G_Y_random.ptr;
 	c_r.g_y.len = G_Y_random.len;
 	c_r.y.ptr = Y_random.ptr;
@@ -396,14 +394,15 @@ void * edhoc_responder_init(void *arg)
 #ifdef PQ_PROPOSAL_1
 	struct suite suit_in;
 	get_suite((enum suite_label)c_r.suites_r.ptr[c_r.suites_r.len - 1],
-		      &suit_in);
+		  &suit_in);
 	uint8_t G_Y[get_kem_cc_len(suit_in.edhoc_ecdh)];
 	c_r.g_y.ptr = G_Y;
 	c_r.g_y.len = get_kem_cc_len(suit_in.edhoc_ecdh);
 	c_r.y.ptr = NULL;
 	c_r.y.len = 0;
-	PRINTF("Test vector number: %d\n", vec_num_i+1);
-	PRINTF("Ciphersuit: KEM %d, Signature %d\n",suit_in.edhoc_ecdh,suit_in.edhoc_sign);
+	PRINTF("Test vector number: %d\n", vec_num_i + 1);
+	PRINTF("Ciphersuit: KEM %d, Signature %d\n", suit_in.edhoc_ecdh,
+	       suit_in.edhoc_sign);
 	printsuits(suit_in.edhoc_ecdh);
 	printsuits(suit_in.edhoc_sign);
 	PRINTF("Server authentication pk size: %d \n", c_r.pk_r.len);
@@ -421,7 +420,8 @@ void * edhoc_responder_init(void *arg)
 		fclose(fp);
 		PRINT_ARRAY("seed", (uint8_t *)&seed, seed_len);
 
-		if(ephemeral_dh_key_gen(P256, seed, &Y_random, &G_Y_random)!=ok){
+		if (ephemeral_dh_key_gen(P256, seed, &Y_random, &G_Y_random) !=
+		    ok) {
 			PRINT_MSG("ephemeral_dh_key_gen return error");
 		}
 		PRINT_ARRAY("secret ephemeral DH key", c_r.g_y.ptr,
@@ -434,35 +434,36 @@ void * edhoc_responder_init(void *arg)
 		uECC_set_rng(default_CSPRNG);
 #endif
 
-			
-		edhoc_responder_run(&c_r, &cred_i_array, &err_msg, &PRK_out,
-					tx, rx, ead_process);
-		PRINT_MSG("-------------------------------------------------------\n");
-	    PRINT_MSG("--------------- KEY DERIVATION RESULTS ---------------\n");
+		edhoc_responder_run(&c_r, &cred_i_array, &err_msg, &PRK_out, tx,
+				    rx, ead_process);
+		PRINT_MSG(
+			"-------------------------------------------------------\n");
+		PRINT_MSG(
+			"--------------- KEY DERIVATION RESULTS ---------------\n");
 		PRINT_ARRAY("PRK_out", PRK_out.ptr, PRK_out.len);
 
-		if(prk_out2exporter(SHA_256, &PRK_out, &prk_exporter)!=ok){
+		if (prk_out2exporter(SHA_256, &PRK_out, &prk_exporter) != ok) {
 			PRINT_MSG("Error in prk_out2exporter");
 		}
 		PRINT_ARRAY("prk_exporter", prk_exporter.ptr, prk_exporter.len);
 
-		if(edhoc_exporter(SHA_256, OSCORE_MASTER_SECRET, &prk_exporter,
-				   &oscore_master_secret)!=ok){
-			PRINT_MSG("Error in edhoc exporter");			
+		if (edhoc_exporter(SHA_256, OSCORE_MASTER_SECRET, &prk_exporter,
+				   &oscore_master_secret) != ok) {
+			PRINT_MSG("Error in edhoc exporter");
 		}
 		PRINT_ARRAY("OSCORE Master Secret", oscore_master_secret.ptr,
 			    oscore_master_secret.len);
 
-		if(edhoc_exporter(SHA_256, OSCORE_MASTER_SALT, &prk_exporter,
-				   &oscore_master_salt)!=ok){
-			PRINT_MSG("error in second edhoc exporter");		
+		if (edhoc_exporter(SHA_256, OSCORE_MASTER_SALT, &prk_exporter,
+				   &oscore_master_salt) != ok) {
+			PRINT_MSG("error in second edhoc exporter");
 		}
 		PRINT_ARRAY("OSCORE Master Salt", oscore_master_salt.ptr,
 			    oscore_master_salt.len);
-		PRINT_MSG("-------------------------------------------------------\n");
+		PRINT_MSG(
+			"-------------------------------------------------------\n");
 		sem_post(&semaphore_finish);
 	}
-	
 }
 int main()
 {
@@ -471,8 +472,8 @@ int main()
 	coap_set_log_level(LOG_INFO);
 	pthread_create(&thread1, NULL, edhoc_responder_init, NULL);
 	if (setup_server() != 0) {
-			fprintf(stderr, "Failed to set up CoAP\n");
-			return EXIT_FAILURE;
+		fprintf(stderr, "Failed to set up CoAP\n");
+		return EXIT_FAILURE;
 	}
 	PRINT_MSG("FINISHING MAIN\n");
 
