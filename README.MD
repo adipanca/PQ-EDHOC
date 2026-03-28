@@ -155,6 +155,22 @@ Use `run_edhoc_benchmark.py` to build and collect RAM/CPU numbers for the Zephyr
 
 Output lives in `benchmarks_edhoc.csv` with columns: `label,runs,median_cpu_initiator,median_cpu_responder,median_mem_init_kb,median_mem_resp_kb`.
 
+### Varian benchmark Zephyr & algoritma
+Skrip `run_edhoc_benchmark.py` membangun aplikasi `test_pq_mem/` dengan kombinasi makro berikut. Tabel di bawah merangkum 5 varian utama beserta algoritma KEM/ECDH dan tanda tangan yang digunakan (lihat mapping di `src/edhoc/suites.c`).
+
+| Varian (label CSV) | Makro suite | ECDH/KEM | Tanda tangan | Kredensial |
+| --- | --- | --- | --- | --- |
+| Type 0 PQ (signature–signature) | `-DUSE_SUIT_7` + `-DUSE_X5T` | KYBER_LEVEL1 | FALCON_LEVEL1 | x5t |
+| Type 3 PQ (mac–mac) | `-DUSE_SUIT_17` + `-DUSE_X5T` | Hybrid H_P256_KYBER_LEVEL1 | ES256 | x5t |
+| Type 3 Hybrid (mac–mac) | `-DUSE_SUIT_18` + `-DUSE_X5T` | Hybrid H_P256_KYBER_LEVEL3 | ES256 | x5t |
+| Type 0 Classic x25519 (signature–signature) | `-DUSE_SUIT_2` + `-DUSE_X5T` | P256 (classic ECDH) | ES256 | x5t |
+| Type 3 Classic x25519 (mac–mac) | `-DUSE_SUIT_2` + `-DUSE_X5CHAIN` | P256 (classic ECDH) | ES256 | x5chain |
+
+Catatan:
+- Role initiator/responder dikontrol oleh `-DINITIATOR` atau `-DRESPONDER` yang diset otomatis oleh skrip.
+- Algoritma AEAD/hash untuk semua varian: AES-CCM-16-64-128 dan SHA-256 (sesuai definisi suite).
+- Lokasi sumber utama: `test_pq_mem/main.c` (harness) dan modul `src/edhoc/*`, `src/oscore/*`, `src/common/*`, `src/cbor/*`.
+
 ## Linux Examples
 For more details on each example, check the corresponding **README** file.
 
