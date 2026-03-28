@@ -222,6 +222,16 @@ enum err get_suite(enum suite_label label, struct suite *suite)
 		suite->app_aead = AES_CCM_16_64_128;
 		suite->app_hash = SHA_256;
 		break;
+	case SUITE_21:
+		suite->suite_label = SUITE_21;
+		suite->edhoc_aead = AES_CCM_16_64_128;
+		suite->edhoc_hash = SHA_256;
+		suite->edhoc_mac_len_static_dh = MAC8;
+		suite->edhoc_ecdh = H_X25519_KYBER_LEVEL3;
+		suite->edhoc_sign = ES256;
+		suite->app_aead = AES_CCM_16_64_128;
+		suite->app_hash = SHA_256;
+		break;
 #endif
 	default:
 		return unsupported_cipher_suite;
@@ -462,6 +472,9 @@ uint32_t get_ecdh_pk_len(enum ecdh_alg alg)
 	case H_P256_BIKE_LEVEL1:
 		return 32;
 		break;
+	case H_X25519_KYBER_LEVEL3:
+		return 32;
+		break;
 	/*#ifdef LIBOQS
 	case KYBER_LEVEL1:
 		return OQS_KEM_ml_kem_512_length_public_key;
@@ -530,6 +543,9 @@ uint32_t get_kem_pk_len(enum ecdh_alg alg)
 	case H_P256_BIKE_LEVEL1:
 		return OQS_KEM_bike_l1_length_public_key;
 		break;
+	case H_X25519_KYBER_LEVEL3:
+		return OQS_KEM_ml_kem_768_length_public_key;
+		break;
 #endif
 #if defined(PQM4) || defined(PQCLEAN)
 	case KYBER_LEVEL1:
@@ -555,6 +571,9 @@ uint32_t get_kem_pk_len(enum ecdh_alg alg)
 		break;
 	case H_P256_BIKE_LEVEL1:
 		return 1541;
+		break;
+	case H_X25519_KYBER_LEVEL3:
+		return 1184;
 		break;
 #endif
 	default:
@@ -594,6 +613,9 @@ uint32_t get_kem_sk_len(enum ecdh_alg alg)
 	case H_P256_BIKE_LEVEL1:
 		return OQS_KEM_bike_l1_length_secret_key;
 		break;
+	case H_X25519_KYBER_LEVEL3:
+		return OQS_KEM_ml_kem_768_length_secret_key;
+		break;
 #endif
 #if defined(PQM4) || defined(PQCLEAN)
 	case KYBER_LEVEL1:
@@ -619,6 +641,9 @@ uint32_t get_kem_sk_len(enum ecdh_alg alg)
 		break;
 	case H_P256_BIKE_LEVEL1:
 		return 5223;
+		break;
+	case H_X25519_KYBER_LEVEL3:
+		return 2400;
 		break;
 #endif
 	default:
@@ -658,6 +683,9 @@ uint32_t get_kem_cc_len(enum ecdh_alg alg)
 	case H_P256_BIKE_LEVEL1:
 		return OQS_KEM_bike_l1_length_ciphertext;
 		break;
+	case H_X25519_KYBER_LEVEL3:
+		return OQS_KEM_ml_kem_768_length_ciphertext;
+		break;
 #endif
 #if defined(PQM4) || defined(PQCLEAN)
 	case KYBER_LEVEL1:
@@ -683,6 +711,9 @@ uint32_t get_kem_cc_len(enum ecdh_alg alg)
 		break;
 	case H_P256_BIKE_LEVEL1:
 		return 1573;
+		break;
+	case H_X25519_KYBER_LEVEL3:
+		return 1088;
 		break;
 #endif
 	default:
@@ -723,6 +754,9 @@ uint32_t get_kem_ss_len(enum ecdh_alg alg)
 	case H_P256_BIKE_LEVEL1:
 		return 32;
 		break;
+	case H_X25519_KYBER_LEVEL3:
+		return 32;
+		break;
 #endif
 #if defined(PQM4) || defined(PQCLEAN)
 	case KYBER_LEVEL1:
@@ -748,6 +782,9 @@ uint32_t get_kem_ss_len(enum ecdh_alg alg)
 		break;
 	case H_P256_BIKE_LEVEL1:
 		return 64;
+		break;
+	case H_X25519_KYBER_LEVEL3:
+		return 32;
 		break;
 #endif
 	default:

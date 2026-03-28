@@ -213,14 +213,20 @@ enum err ciphertext_gen(enum ciphertext ctxt, struct suite *suite,
 
 		PRINT_ARRAY("kid", kid.ptr, kid.len);
 
-		if (kid.len != 0) {
-			/*id_cred_x is a KID*/
+		/*
+		 * For ciphertext_3, avoid emitting the bare kid integer when available
+		 * so the plaintext doesn't get misinterpreted as an optional C_R
+		 * (which is only present in message_2). Instead, include the full
+		 * ID_CRED map when generating msg3; keep the compact kid form for
+		 * msg2 where C_R is expected.
+		 */
+		bool use_kid_only = (ctxt == CIPHERTEXT2) && (kid.len != 0);
+		if (use_kid_only) {
 			TRY(byte_array_append(plaintext, &kid,
-					      ptxt_buf_capacity));
+				      ptxt_buf_capacity));
 		} else {
-			/*id_cred_x is NOT a KID*/
 			TRY(byte_array_append(plaintext, id_cred,
-					      ptxt_buf_capacity));
+				      ptxt_buf_capacity));
 		}
 		TRY(byte_array_append(plaintext, &signature_or_mac_enc,
 				      ptxt_buf_capacity));

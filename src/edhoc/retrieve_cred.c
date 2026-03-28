@@ -101,6 +101,20 @@ static enum err get_local_cred(bool static_dh_auth,
 			       struct byte_array *cred, struct byte_array *pk,
 			       struct byte_array *g)
 {
+	printf("[cred] lookup ID_CRED len=%u\n", ID_cred->len);
+	for (uint32_t b = 0; b < ID_cred->len; b++) {
+		printf("%02X", ID_cred->ptr[b]);
+	}
+	printf("\n");
+	printf("[cred] cred_array entries: %u\n", cred_array->len);
+	for (uint32_t j = 0; j < cred_array->len; j++) {
+		printf("[cred] candidate[%u] len=%u ", j,
+		       cred_array->ptr[j].id_cred.len);
+		for (uint32_t b = 0; b < cred_array->ptr[j].id_cred.len; b++) {
+			printf("%02X", cred_array->ptr[j].id_cred.ptr[b]);
+		}
+		printf("\n");
+	}
 	for (uint32_t i = 0; i < cred_array->len; i++) {
 		if ((cred_array->ptr[i].id_cred.len == ID_cred->len) &&
 		    (0 == memcmp(cred_array->ptr[i].id_cred.ptr, ID_cred->ptr,
@@ -141,6 +155,7 @@ static enum err get_local_cred(bool static_dh_auth,
 		}
 	}
 
+	printf("[cred] credential lookup failed\n");
 	return credential_not_found;
 }
 

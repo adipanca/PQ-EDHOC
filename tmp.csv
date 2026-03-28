@@ -1,0 +1,2 @@
+label,runs,median_cpu_initiator,median_cpu_responder,median_mem_init_kb,median_mem_resp_kb
+Edhoc type 3 Classic x25519 (Zephyr native_posix_64),1,8.064,8.068,70.1,70.1

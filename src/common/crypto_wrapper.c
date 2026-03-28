@@ -136,6 +136,8 @@ static const char *OQS_ID2name(int id)
 		return OQS_KEM_alg_hqc_128;
 	case H_P256_BIKE_LEVEL1:
 		return OQS_KEM_alg_bike_l1;
+	case H_X25519_KYBER_LEVEL3:
+		return OQS_KEM_alg_ml_kem_768;
 	default:
 		break;
 	}
@@ -186,6 +188,10 @@ enum err WEAK ephemeral_kem_key_gen(enum ecdh_alg alg, struct byte_array *sk,
 			pk->len = OQS_KEM_hqc_128_length_public_key;
 			sk->len = OQS_KEM_hqc_128_length_secret_key;
 			break;
+		case H_X25519_KYBER_LEVEL3:
+			pk->len = OQS_KEM_ml_kem_768_length_public_key;
+			sk->len = OQS_KEM_ml_kem_768_length_secret_key;
+			break;
 		case BIKE_LEVEL1:
 			pk->len = OQS_KEM_bike_l1_length_public_key;
 			sk->len = OQS_KEM_bike_l1_length_secret_key;
@@ -203,8 +209,8 @@ enum err WEAK ephemeral_kem_key_gen(enum ecdh_alg alg, struct byte_array *sk,
 			sk->len = OQS_KEM_hqc_128_length_secret_key;
 			break;
 		case H_P256_BIKE_LEVEL1:
-			pk->len = OQS_KEM_hqc_128_length_public_key;
-			sk->len = OQS_KEM_hqc_128_length_secret_key;
+			pk->len = OQS_KEM_bike_l1_length_public_key;
+			sk->len = OQS_KEM_bike_l1_length_secret_key;
 			break;
 		default:
 			/* No other values supported. */
@@ -246,6 +252,10 @@ enum err WEAK ephemeral_kem_key_gen(enum ecdh_alg alg, struct byte_array *sk,
 		case BIKE_LEVEL1:
 			pk->len = 1541;
 			sk->len = 5223;
+			break;
+		case H_X25519_KYBER_LEVEL3:
+			pk->len = 1184;
+			sk->len = 2400;
 			break;
 		default:
 			/* No other values supported. */
@@ -338,7 +348,7 @@ enum err WEAK kem_encapsulate(enum ecdh_alg alg, const struct byte_array *pk,
 		case H_P256_KYBER_LEVEL3:
 			ct->len = OQS_KEM_ml_kem_768_length_ciphertext;
 			shared_secret->len =
-				OQS_KEM_ml_kem_1024_length_shared_secret;
+				OQS_KEM_ml_kem_768_length_shared_secret;
 			break;
 		case H_P256_HQC_LEVEL1:
 			ct->len = OQS_KEM_hqc_128_length_ciphertext;
@@ -349,6 +359,11 @@ enum err WEAK kem_encapsulate(enum ecdh_alg alg, const struct byte_array *pk,
 			ct->len = OQS_KEM_bike_l1_length_ciphertext;
 			shared_secret->len =
 				OQS_KEM_bike_l1_length_shared_secret;
+			break;
+		case H_X25519_KYBER_LEVEL3:
+			ct->len = OQS_KEM_ml_kem_768_length_ciphertext;
+			shared_secret->len =
+				OQS_KEM_ml_kem_768_length_shared_secret;
 			break;
 		default:
 			/* No other values supported. */
@@ -401,6 +416,10 @@ enum err WEAK kem_encapsulate(enum ecdh_alg alg, const struct byte_array *pk,
 			shared_secret->len = 32;
 			break;
 		case H_P256_KYBER_LEVEL3:
+			ct->len = 1088;
+			shared_secret->len = 32;
+			break;
+		case H_X25519_KYBER_LEVEL3:
 			ct->len = 1088;
 			shared_secret->len = 32;
 			break;
@@ -1347,7 +1366,7 @@ enum err WEAK shared_secret_derive(enum ecdh_alg alg,
 {
 #ifdef DH
 	PRINT_MSG("SHARED SECRET DERIVE\n");
-	if (alg == X25519) {
+	if ((alg == X25519) || (alg == H_X25519_KYBER_LEVEL3)) {
 #ifdef COMPACT25519
 		uint8_t e[F25519_SIZE];
 		f25519_copy(e, sk->ptr);
@@ -1357,8 +1376,8 @@ enum err WEAK shared_secret_derive(enum ecdh_alg alg,
 #endif
 	}
 	if ((alg == P256) || (alg == H_P256_KYBER_LEVEL1) ||
-	    (alg == H_P256_KYBER_LEVEL3) || (alg == H_P256_HQC_LEVEL1) ||
-	    (alg == H_P256_BIKE_LEVEL1)) {
+	    (alg == H_P256_KYBER_LEVEL3) ||
+	    (alg == H_P256_HQC_LEVEL1) || (alg == H_P256_BIKE_LEVEL1)) {
 		PRINT_MSG("P256 in DH\n");
 #if defined(TINYCRYPT)
 		uECC_Curve p256 = uECC_secp256r1();

@@ -127,8 +127,78 @@ The credential type must be selected.
 FEATURES += -DUSE_X5CHAIN
 ```
 
+## Benchmarking (Zephyr native_posix_64)
+Use `run_edhoc_benchmark.py` to build and collect RAM/CPU numbers for the Zephyr samples.
+
+**Requirements**
+- Zephyr SDK/toolchain on PATH (tested with Zephyr 3.6.0 and `native_posix_64`).
+- Python 3.8+.
+
+**Quick commands**
+- Memory-only (fastest) and overwrite the CSV:
+   ```
+   python3 run_edhoc_benchmark.py --overwrite-csv --write-csv
+   ```
+- CPU + memory (slower) with build logs, 10s timeout, and skip timed-out runs:
+   ```
+   python3 run_edhoc_benchmark.py \
+      --show-build-output --run-cpu --timeout 10 --skip-timeouts \
+      --overwrite-csv --write-csv
+   ```
+
+**Flags to know**
+- `--overwrite-csv` writes a fresh header to `benchmarks_edhoc.csv` before appending results.
+- `--write-csv` enables CSV output (otherwise prints to stdout only).
+- `--run-cpu` adds CPU timing runs; omit to collect RAM-only.
+- `--timeout` caps each binary run; pair with `--skip-timeouts` to drop stalled variants instead of recording zeroes.
+- `--show-build-output` streams the Zephyr build log.
+
+Output lives in `benchmarks_edhoc.csv` with columns: `label,runs,median_cpu_initiator,median_cpu_responder,median_mem_init_kb,median_mem_resp_kb`.
+
 ## Linux Examples
 For more details on each example, check the corresponding **README** file.
+
+### Quick start: run EDHOC on Linux
+
+The commands below assume `liboqs` is already built and `LD_LIBRARY_PATH` points to `build/` (the static library artifacts live in `build/` after a `make` from the repo root). Use two terminals: one for the responder, one for the initiator.
+
+| Scenario | Method | Where to run | Build steps | Run steps |
+| --- | --- | --- | --- | --- |
+| **Type 0 PQ** (signature/signature, PQ proposal 1) | `method_type = 0` | `samples/linux_pq_edhoc` | `cd samples/linux_pq_edhoc/responder && make clean && make -j`<br>`cd samples/linux_pq_edhoc/initiator && make clean && make -j` | Terminal 1: `LD_LIBRARY_PATH=../../../build ./build/responder`<br>Terminal 2: `LD_LIBRARY_PATH=../../../build ./build/initiator` |
+| **Type 3 PQ** (static DH authentication, PQ-only) | `method_type = 3` | `samples/linux_template` | In `makefile_config.mk` comment out `-DPQ_T_HYBRID` so only PQ KEM is used; keep your PQ KEM/signature defines (e.g., `-DKYBER_LEVEL_3`).<br>`cd samples/linux_template/responder && make clean && make -j`<br>`cd samples/linux_template/initiator && make clean && make -j` | Terminal 1: `LD_LIBRARY_PATH=../../../build ./build/responder`<br>Terminal 2: `LD_LIBRARY_PATH=../../../build ./build/initiator` |
+| **Type 3 Hybrid** (static DH + PQ KEM) | `method_type = 3` | `samples/linux_template` | Ensure `-DPQ_T_HYBRID` is **enabled** in `makefile_config.mk` (default in this branch) and keep your DH/PQ selections (`-DDH`, `-DKYBER_LEVEL_3`, etc.).<br>`cd samples/linux_template/responder && make clean && make -j`<br>`cd samples/linux_template/initiator && make clean && make -j` | Terminal 1: `LD_LIBRARY_PATH=../../../build ./build/responder`<br>Terminal 2: `LD_LIBRARY_PATH=../../../build ./build/initiator` |
+
+Notes:
+- If you switch between PQ-only and hybrid, rebuild both responder and initiator after editing `makefile_config.mk`.
+- `method_type` is set inside the sample sources (`c_i.method`); the listed samples already use the correct method for each scenario via their test vectors (type 0) or hard-coded method 3 (templates).
+- For block-wise CoAP variants, use the corresponding `linux_edhoc_block_pq` folder and the same `makefile_config.mk` toggles.
+
+### Cara pengujian cepat (linux_template)
+1. Pastikan `liboqs` sudah dibangun dan jalur dinamisnya diekspor:
+   ```bash
+   export LD_LIBRARY_PATH=../../../build
+   ```
+   Jalankan perintah ini di kedua terminal (initiator & responder).
+2. Bangun ulang biner untuk setiap sisi:
+   ```bash
+   cd samples/linux_template/responder && make clean && make -j
+   cd ../initiator && make clean && make -j
+   ```
+3. Terminal A (responder):
+   ```bash
+   cd samples/linux_template/responder
+   LD_LIBRARY_PATH=../../../build ./build/responder
+   ```
+4. Terminal B (initiator):
+   ```bash
+   cd samples/linux_template/initiator
+   LD_LIBRARY_PATH=../../../build ./build/initiator
+   ```
+5. Verifikasi: log harus menampilkan pertukaran pesan EDHOC hingga selesai dan proses keluar dengan kode 0. Jika aplikasi tidak berhenti, hentikan dengan `Ctrl+C` dan periksa apakah proses lain masih aktif menggunakan `pgrep -f build/responder` atau `pgrep -f build/initiator`.
+
+Catatan:
+- Saat mengganti konfigurasi di `makefile_config.mk` (mis. toggle `-DPQ_T_HYBRID` atau pilihan KEM/Signature), ulangi langkah build sebelum menjalankan.
+- Jika perpustakaan tidak ditemukan, pastikan `LD_LIBRARY_PATH` menunjuk ke direktori `build/` yang berisi `liboqs`.
 
 ### PQ EDHOC over COAP
 

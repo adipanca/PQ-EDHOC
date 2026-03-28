@@ -30,6 +30,11 @@ enum err prk_derive(bool static_dh_auth, struct suite suite, uint8_t label,
 	if (static_dh_auth) {
 		BYTE_ARRAY_NEW(dh_secret, ECDH_SECRET_SIZE, ECDH_SECRET_SIZE);
 
+		PRINTF("[prk_derive] static DH alg %d pk_len %u sk_len %u\n",
+		       suite.edhoc_ecdh, stat_pk->len, stat_sk->len);
+		PRINT_ARRAY("[prk_derive] stat_pk", stat_pk->ptr, stat_pk->len);
+		PRINT_ARRAY("[prk_derive] stat_sk", stat_sk->ptr, stat_sk->len);
+
 		TRY(shared_secret_derive(suite.edhoc_ecdh, stat_sk, stat_pk,
 					 dh_secret.ptr));
 		PRINT_ARRAY("dh_secret", dh_secret.ptr, dh_secret.len);

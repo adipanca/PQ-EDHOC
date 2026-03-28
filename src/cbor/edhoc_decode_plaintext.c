@@ -250,12 +250,28 @@ static bool decode_plaintext(
 	zcbor_log("%s\r\n", __func__);
 	bool int_res;
 
-	bool tmp_result = (((zcbor_present_decode(&((*result).plaintext_C_R_present), (zcbor_decoder_t *)decode_repeated_plaintext_C_R, state, (&(*result).plaintext_C_R))
-	&& ((zcbor_union_start_code(state) && (int_res = ((((decode_map(state, (&(*result).plaintext_ID_CRED_x_map_m)))) && (((*result).plaintext_ID_CRED_x_choice = plaintext_ID_CRED_x_map_m_c), true))
-	|| (zcbor_union_elem_code(state) && (((zcbor_bstr_decode(state, (&(*result).plaintext_ID_CRED_x_bstr)))) && (((*result).plaintext_ID_CRED_x_choice = plaintext_ID_CRED_x_bstr_c), true)))
-	|| (((zcbor_int32_decode(state, (&(*result).plaintext_ID_CRED_x_int)))) && (((*result).plaintext_ID_CRED_x_choice = plaintext_ID_CRED_x_int_c), true))), zcbor_union_end_code(state), int_res)))
-	&& ((zcbor_bstr_decode(state, (&(*result).plaintext_SGN_or_MAC_x))))
-	&& ((*result).plaintext_AD_x_present = ((zcbor_bstr_decode(state, (&(*result).plaintext_AD_x)))), 1))));
+	bool tmp_result = (
+		zcbor_present_decode(&((*result).plaintext_C_R_present),
+				     (zcbor_decoder_t *)decode_repeated_plaintext_C_R,
+				     state, (&(*result).plaintext_C_R)) &&
+		(zcbor_union_start_code(state) &&
+		 (int_res =
+		 	(((decode_map(state, (&(*result).plaintext_ID_CRED_x_map_m)))) &&
+		 	 (((*result).plaintext_ID_CRED_x_choice =
+		 	 	plaintext_ID_CRED_x_map_m_c), true)) ||
+		 	(zcbor_union_elem_code(state) &&
+		 	 ((zcbor_bstr_decode(state,
+		 	 	&(*result).plaintext_ID_CRED_x_bstr))) &&
+		 	 (((*result).plaintext_ID_CRED_x_choice =
+		 	 	plaintext_ID_CRED_x_bstr_c), true)) ||
+		 	(((zcbor_int32_decode(state, &(*result).plaintext_ID_CRED_x_int))) &&
+		 	 (((*result).plaintext_ID_CRED_x_choice =
+		 	 	plaintext_ID_CRED_x_int_c), true)),
+		 zcbor_union_end_code(state), int_res)) &&
+		(zcbor_bstr_decode(state, (&(*result).plaintext_SGN_or_MAC_x))) &&
+		zcbor_present_decode(&((*result).plaintext_AD_x_present),
+				     (zcbor_decoder_t *)zcbor_bstr_decode, state,
+				     (&(*result).plaintext_AD_x)));
 
 	if (!tmp_result) {
 		zcbor_trace_file(state);

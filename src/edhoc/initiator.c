@@ -148,7 +148,7 @@ static enum err msg2_process(const struct edhoc_initiator_context *c,
 	}
 	/*Get size of gy in PQ/T hybrid suit*/
 	else if ((c->suites_i.ptr[c->suites_i.len - 1] >= SUITE_17) &&
-		 (c->suites_i.ptr[c->suites_i.len - 1] <= SUITE_20)) {
+		 (c->suites_i.ptr[c->suites_i.len - 1] <= SUITE_21)) {
 #if defined(PQ_T_HYBRID)
 		PRINTF("PQ/T Hybrid Suit:%d\n", rc->suite.edhoc_ecdh);
 		g_y_size = get_ecdh_pk_len(rc->suite.edhoc_ecdh) +
@@ -196,7 +196,7 @@ static enum err msg2_process(const struct edhoc_initiator_context *c,
 	}
 	/*Compute shared secrey in PQ/T hybrid suit*/
 	else if ((c->suites_i.ptr[c->suites_i.len - 1] >= SUITE_17) &&
-		 (c->suites_i.ptr[c->suites_i.len - 1] <= SUITE_20)) {
+			 (c->suites_i.ptr[c->suites_i.len - 1] <= SUITE_21)) {
 #if defined(PQ_T_HYBRID)
 		PRINTF("PQ/T Hybrid compute shared secret (Suit:%d)\n",
 		       rc->suite.edhoc_ecdh);
@@ -246,7 +246,7 @@ static enum err msg2_process(const struct edhoc_initiator_context *c,
 
 	/*Second derivation in cascadae when PQ/T hybrid is used */
 	if ((c->suites_i.ptr[c->suites_i.len - 1] >= SUITE_17) &&
-	    (c->suites_i.ptr[c->suites_i.len - 1] <= SUITE_20)) {
+	    (c->suites_i.ptr[c->suites_i.len - 1] <= SUITE_21)) {
 #if defined(PQ_T_HYBRID)
 		/*calculate th2*/
 		TRY(th2_calculate(rc->suite.edhoc_hash, &rc->msg1_hash, &g_y,

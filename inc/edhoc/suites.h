@@ -37,6 +37,7 @@ enum suite_label {
 	SUITE_18 = 18,
 	SUITE_19 = 19,
 	SUITE_20 = 20,
+	SUITE_21 = 21,
 };
 
 enum aead_alg {
@@ -58,6 +59,8 @@ enum ecdh_alg {
 	H_P256_KYBER_LEVEL3 = -54,
 	H_P256_HQC_LEVEL1 = -55,
 	H_P256_BIKE_LEVEL1 = -56
+	,
+	H_X25519_KYBER_LEVEL3 = -67
 	
 };
 

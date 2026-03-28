@@ -107,6 +107,22 @@ enum err plaintext_split(struct byte_array *ptxt, struct byte_array *c_r,
 
 	/*ID_CRED_x*/
 	if (p.plaintext_ID_CRED_x_choice == plaintext_ID_CRED_x_map_m_c) {
+		if (p.plaintext_ID_CRED_x_map_m.map_kid_present) {
+			if (p.plaintext_ID_CRED_x_map_m.map_kid.map_kid_choice ==
+			    map_kid_int_c) {
+				int kid_int = p.plaintext_ID_CRED_x_map_m.map_kid
+						.map_kid_int;
+				TRY(id_cred_x_encode(kid, 0, &kid_int, 1, id_cred_x));
+			} else {
+				TRY(id_cred_x_encode(
+					kid, 0,
+					p.plaintext_ID_CRED_x_map_m.map_kid.map_kid_bstr
+						.value,
+					(uint32_t)p.plaintext_ID_CRED_x_map_m.map_kid
+						.map_kid_bstr.len,
+					id_cred_x));
+			}
+		}
 		if (p.plaintext_ID_CRED_x_map_m.map_x5chain_present) {
 			//printf("ID_CRED of x5chain type\n");
 			TRY(id_cred_x_encode(

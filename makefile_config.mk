@@ -25,7 +25,7 @@ OPT = -Os
 ################################################################################
 # Print helpful debug messages
 ################################################################################
-#DEBUG_PRINT += -DDEBUG_PRINT
+DEBUG_PRINT += -DDEBUG_PRINT
 
 ################################################################################
 # Use Address Sanitizer, e.g. with native_posix
@@ -83,16 +83,15 @@ FEATURES += -DSUITES_I_SIZE=1
 
 ###############################################################################
 # Select PQ/T Hybrid EDHOC
-#FEATURES += -DPQ_T_HYBRID
+FEATURES += -DPQ_T_HYBRID
 
 ################################################################################
 # Select for use EDHOC DH algorithm
-#FEATURES += -DDH
+FEATURES += -DDH
 
 ################################################################################
 # Select the PQ KEM algorithm to be used, 
-FEATURES += -DKYBER_LEVEL_1
-#FEATURES += -DKYBER_LEVEL_3
+FEATURES += -DKYBER_LEVEL_3
 #FEATURES += -DHQC_LEVEL_1 
 #FEATURES += -DBIKE_LEVEL_1
 
@@ -102,7 +101,7 @@ FEATURES += -DKYBER_LEVEL_1
 #FEATURES += -DFALCON_LEVEL_1
 
 #FEATURES += -DDILITHIUM_LEVEL_2
-FEATURES += -DHAWK_LEVEL_1
+#FEATURES += -DHAWK_LEVEL_1
 #FEATURES += -DHAETAE_LEVEL_2
 
 ################################################################################
@@ -196,9 +195,10 @@ FEATURES += -DI_OPTIONS_BUFF_MAX_LEN=100
 #CRYPTO_ENGINE += -DPQM4
 CRYPTO_ENGINE += -DTINYCRYPT
 CRYPTO_ENGINE += -DCOMPACT25519
+CRYPTO_ENGINE += -DLIBOQS
 ###############################################################
 # Enable only when we use HQC KEM
-CRYPTO_ENGINE += -DPQCLEAN
+#CRYPTO_ENGINE += -DPQCLEAN
 #CRYPTO_ENGINE += -DMBEDTLSmk
 ################################################################
 # Enable that for PQ tests in linux
@@ -206,6 +206,6 @@ CRYPTO_ENGINE += -DPQCLEAN
 ###############################################################
 # Enable only for HAWK and HAETAE in linux
 
-CRYPTO_ENGINE += -DMUPQ 
+#CRYPTO_ENGINE += -DMUPQ 
 
 

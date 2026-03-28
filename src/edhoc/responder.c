@@ -228,7 +228,7 @@ enum err msg2_gen(struct edhoc_responder_context *c, struct runtime_context *rc,
 	}
 	/*Calculate the KEM if is PQ/T hybrid suit*/
 	else if ((suites_i.ptr[suites_i.len - 1] >= SUITE_17) &&
-		 (suites_i.ptr[suites_i.len - 1] <= SUITE_20)) {
+		 (suites_i.ptr[suites_i.len - 1] <= SUITE_21)) {
 #if defined(PQ_T_HYBRID)
 		/*calculate the DH shared secret*/
 		PRINT_MSG("PQ/T hybrid suit\n");
@@ -284,7 +284,7 @@ enum err msg2_gen(struct edhoc_responder_context *c, struct runtime_context *rc,
 #endif
 	/*Second derivation in cancadae when PQ/T hybrid is used */
 	if ((suites_i.ptr[suites_i.len - 1] >= SUITE_17) &&
-	    (suites_i.ptr[suites_i.len - 1] <= SUITE_20)) {
+	    (suites_i.ptr[suites_i.len - 1] <= SUITE_21)) {
 #if defined(PQ_T_HYBRID)
 		/*calculate th2*/
 		TRY(hash(rc->suite.edhoc_hash, &rc->msg, &rc->msg1_hash));

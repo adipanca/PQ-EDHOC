@@ -105,7 +105,7 @@ CXXFLAGS += $(FEATURES)
 
 USOCORE_UEDHOC_OBJ = $(wildcard $(USOCORE_UEDHOC_PATH)/*.o) 
 
-INITIATOR_DIR := ${ROOT_DIR}/samples/linux_pq_edhoc/initiator
+INITIATOR_DIR := ${ROOT_DIR}/samples/linux_template/initiator
 INITIATOR_SOURCES := $(wildcard ${INITIATOR_DIR}/src/*.c) $(wildcard ${INITIATOR_DIR}/src/*.cpp)
 INITIATOR_INCLUDES := -I${ROOT_DIR}/inc -I${ROOT_DIR}/test_vectors
 
