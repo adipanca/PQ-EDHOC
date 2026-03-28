@@ -55,8 +55,10 @@ if(USE_SUIT_7)
   *.c
   # edhoc_integration_tests/*.c
   ../externals/zcbor/src/*.c
-  #../externals/compact25519/src/c25519/*.c
-  #../externals/compact25519/src/*.c
+  ../externals/compact25519/src/c25519/*.c
+  ../externals/compact25519/src/ed25519/*.c
+  ../externals/compact25519/src/edsign/*.c
+  ../externals/compact25519/src/*.c
  # ../externals/mbedtls/library/*.c
   ../externals/tinycrypt/lib/source/*.c
   #../test_vectors/*.c
@@ -87,6 +89,7 @@ if(USE_SUIT_7)
    # ../externals/mbedtls/include/mbedtls 
    # ../externals/mbedtls/include/psa
     ../externals/tinycrypt/lib/include
+    ../externals/compact25519/src
     ../externals/pqm4/crypto_kem/kyber512/m4fstack
     ../externals/pqm4/crypto_sign/falcon-512/m4-ct
     ../externals/pqm4/mupq/common
@@ -469,6 +472,8 @@ if(USE_SUIT_17)
   edhoc_integration_tests/*.c
   ../externals/zcbor/src/*.c
   ../externals/compact25519/src/c25519/*.c
+  ../externals/compact25519/src/ed25519/*.c
+  ../externals/compact25519/src/edsign/*.c
   ../externals/compact25519/src/*.c
  # ../externals/mbedtls/library/*.c
   ../externals/tinycrypt/lib/source/*.c
@@ -500,6 +505,7 @@ if(USE_SUIT_17)
    # ../externals/mbedtls/include/mbedtls 
    # ../externals/mbedtls/include/psa
     ../externals/tinycrypt/lib/include
+  ../externals/compact25519/src
     ../externals/pqm4/crypto_kem/kyber512/m4fstack
    # ../externals/pqm4/crypto_sign/falcon-512/m4-ct
     ../externals/pqm4/mupq/common
@@ -514,6 +520,8 @@ if(USE_SUIT_18)
   edhoc_integration_tests/*.c
   ../externals/zcbor/src/*.c
   ../externals/compact25519/src/c25519/*.c
+  ../externals/compact25519/src/ed25519/*.c
+  ../externals/compact25519/src/edsign/*.c
   ../externals/compact25519/src/*.c
  # ../externals/mbedtls/library/*.c
   ../externals/tinycrypt/lib/source/*.c
@@ -545,6 +553,7 @@ if(USE_SUIT_18)
    # ../externals/mbedtls/include/mbedtls 
    # ../externals/mbedtls/include/psa
     ../externals/tinycrypt/lib/include
+  ../externals/compact25519/src
     ../externals/pqm4/crypto_kem/kyber768/m4fstack
    # ../externals/pqm4/crypto_sign/falcon-512/m4-ct
     ../externals/pqm4/mupq/common
@@ -787,3 +796,10 @@ target_include_directories(test INTERFACE
 )
 
 target_link_libraries(app PRIVATE test)
+
+# Link liboqs built in externals for PQ crypto support
+set(OQS_LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../externals/liboqs/build/lib)
+target_link_directories(app PRIVATE ${OQS_LIB_DIR})
+target_link_libraries(app PRIVATE oqs)
+target_link_options(app PRIVATE -L${OQS_LIB_DIR})
+zephyr_link_libraries(-L${OQS_LIB_DIR})
