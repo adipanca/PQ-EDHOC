@@ -1,6 +1,6 @@
 label,runs,median_cpu_initiator,median_cpu_responder,median_mem_init_kb,median_mem_resp_kb
-Edhoc type 0 PQ (Zephyr native_posix_64),1,8.107,8.164,66.5,66.7
-Edhoc type 3 PQ (Zephyr native_posix_64),1,8.184,8.070,61.8,57.9
-Edhoc type 3 Hybrid (Zephyr native_posix_64),1,8.051,8.072,65.4,59.1
-Edhoc type 0 Classic x25519 (Zephyr native_posix_64),1,8.039,8.072,53.7,53.3
-Edhoc type 3 Classic x25519 (Zephyr native_posix_64),1,8.182,8.067,56.9,56.1
+Edhoc type 0 PQ (Zephyr native_posix_64),1,8.035,8.124,66.5,66.7
+Edhoc type 3 PQ (Zephyr native_posix_64),1,8.085,8.025,61.8,57.9
+Edhoc type 3 Hybrid (Zephyr native_posix_64),1,8.076,8.093,65.4,59.1
+Edhoc type 0 Classic x25519 (Zephyr native_posix_64),1,8.055,8.106,53.7,53.3
+Edhoc type 3 Classic x25519 (Zephyr native_posix_64),1,8.110,8.041,56.9,56.1

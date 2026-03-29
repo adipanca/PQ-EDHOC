@@ -8,8 +8,17 @@
 //#include <zephyr/ztest.h>
 #include <zephyr/debug/thread_analyzer.h>
 #include <zephyr/sys/time_units.h>
+#include <zephyr/sys_clock.h>
 #include <string.h>
+#include <time.h>
+#include <sys/time.h>
+#ifdef LIBSODIUM
+#include <sodium.h>
+#endif
 #include <edhoc.h>
+#include <common/crypto_wrapper.h>
+
+int test_initiator_responder_interaction(int vec_num);
 
 #include "edhoc_test_vectors_p256_v16.h"
 //#include "latency.h"
@@ -990,7 +999,7 @@ int test_initiator_responder_interaction(int vec_num)
 		K_THREAD_STACK_SIZEOF(thread_initiator_stack_area),
 		thread_initiator, (void *)&vec_num, NULL, NULL, PRIORITY, 0,
 		K_NO_WAIT);
-    #endif
+	#endif
 	#ifdef RESPONDER
 	/*responder thread*/
 	k_tid_t responder_tid = k_thread_create(
@@ -998,13 +1007,13 @@ int test_initiator_responder_interaction(int vec_num)
 		K_THREAD_STACK_SIZEOF(thread_responder_stack_area),
 		thread_responder, (void *)&vec_num, NULL, NULL, PRIORITY, 0,
 		K_NO_WAIT);
-    #endif
+	#endif
 	#ifdef INITIATOR  
 	k_thread_start(&thread_initiator_data);
 	#endif
 	#ifdef RESPONDER
 	k_thread_start(&thread_responder_data);
-    #endif
+	#endif
 	#ifdef INITIATOR
 	if (0 != k_thread_join(&thread_initiator_data, K_SECONDS(5))) {
 		PRINT_MSG("initiator thread stalled! Aborting.");
@@ -1022,16 +1031,16 @@ int test_initiator_responder_interaction(int vec_num)
 	/* check if Initiator and Responder computed the same values */
 
 	/*zassert_mem_equal__(I_PRK_out.ptr, R_PRK_out.ptr, R_PRK_out.len,
-			    "wrong prk_out");
+				"wrong prk_out");
 
 	zassert_mem_equal__(I_prk_exporter.ptr, R_prk_exporter.ptr,
-			    R_prk_exporter.len, "wrong prk_exporter");
+				R_prk_exporter.len, "wrong prk_exporter");
 
 	zassert_mem_equal__(I_master_secret.ptr, R_master_secret.ptr,
-			    R_master_secret.len, "wrong master_secret");
+				R_master_secret.len, "wrong master_secret");
 
 	zassert_mem_equal__(I_master_salt.ptr, R_master_salt.ptr,
-			    R_master_salt.len, "wrong master_salt");*/
+				R_master_salt.len, "wrong master_salt");*/
 	return 0;
 }
 #endif
@@ -1056,8 +1065,595 @@ static void bench_entry(void *p1, void *p2, void *p3)
 	test_initiator_responder_interaction(TEST_NUM);
 }
 
+/* ---------- Ops benchmark (per-operation) ---------- */
+
+#ifdef OPS_BENCH
+static uint64_t now_ns(void)
+{
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	return (uint64_t)tv.tv_sec * 1000000000ULL + (uint64_t)tv.tv_usec * 1000ULL;
+}
+
+static double ns_to_ms(uint64_t ns)
+{
+	return (double)ns / 1000000.0;
+}
+
+/* Map hybrid to underlying KEM for keygen/encap/decap */
+static enum ecdh_alg kem_from_suite(enum ecdh_alg e)
+{
+	switch (e) {
+	case H_P256_KYBER_LEVEL1:
+		return KYBER_LEVEL1;
+	case H_P256_KYBER_LEVEL3:
+	case H_X25519_KYBER_LEVEL3:
+		return KYBER_LEVEL3;
+	case H_P256_HQC_LEVEL1:
+		return HQC_LEVEL1;
+	case H_P256_BIKE_LEVEL1:
+		return BIKE_LEVEL1;
+	default:
+		return e;
+	}
+}
+
+static bool is_hybrid_ecdh(enum ecdh_alg e)
+{
+	return (e == H_P256_KYBER_LEVEL1) || (e == H_P256_KYBER_LEVEL3) ||
+	       (e == H_P256_HQC_LEVEL1) || (e == H_P256_BIKE_LEVEL1) ||
+	       (e == H_X25519_KYBER_LEVEL3);
+}
+
+/* Map hybrid suite to base DH algorithm used by shared_secret_derive */
+static enum ecdh_alg dh_from_suite(enum ecdh_alg e)
+{
+	switch (e) {
+	case H_P256_KYBER_LEVEL1:
+	case H_P256_KYBER_LEVEL3:
+	case H_P256_HQC_LEVEL1:
+	case H_P256_BIKE_LEVEL1:
+		return P256;
+	case H_X25519_KYBER_LEVEL3:
+		return X25519;
+	default:
+		return e;
+	}
+}
+
+static bool is_pq_sign_alg(enum sign_alg alg)
+{
+	return (alg <= FALCON_LEVEL1) && (alg >= OV_IP_LEVEL1);
+}
+
+static void print_json_row(const char *label, const char *role,
+			   double keygen_ms, double encap_ms, double decap_ms,
+			   double sig_ms, double ver_ms, double ecdh_ms, double hkdf_ms)
+{
+	/* Single-line JSON for easy parsing */
+	printf("{\"label\":\"%s\",\"role\":\"%s\",\"ops\":{"
+		   "\"KeyGen\":%.6f,\"Encap\":%.6f,\"Decap\":%.6f,"
+		   "\"Signature\":%.6f,\"Verification\":%.6f,\"ECDH\":%.6f,\"HKDF\":%.6f}}\n",
+		   label, role, keygen_ms, encap_ms, decap_ms, sig_ms, ver_ms, ecdh_ms, hkdf_ms);
+}
+
+static void run_ops_bench(void)
+{
+	/* Pick the first test vector of the compiled suite */
+	int vec_num_i = 0; /* zero-based */
+
+#if defined(CLASSIC_FAST_LIBSODIUM) && defined(USE_SUIT_2)
+#define OPS_ITERS 5000
+#else
+#define OPS_ITERS 100
+#endif
+
+	struct suite suit_in;
+	/* derive suite label from compile-time flags */
+	enum suite_label label = SUITE_2;
+#if defined(USE_SUIT_7)
+	label = SUITE_7;
+#elif defined(USE_SUIT_17)
+	label = SUITE_17;
+#elif defined(USE_SUIT_18)
+	label = SUITE_18;
+#elif defined(USE_SUIT_2)
+	label = SUITE_2;
+#endif
+	get_suite(label, &suit_in);
+
+	/* Benchmark profile override for classic runs:
+	 * default fair mode: use suite-defined classic algorithms (P256 + ES256).
+	 * optional fast mode (CLASSIC_FAST_LIBSODIUM): X25519 + EdDSA.
+	 */
+	enum ecdh_alg bench_ecdh_alg = suit_in.edhoc_ecdh;
+	enum sign_alg bench_sign_alg = suit_in.edhoc_sign;
+#if defined(USE_SUIT_2) && defined(CLASSIC_FAST_LIBSODIUM)
+	bench_ecdh_alg = X25519;
+	bench_sign_alg = EdDSA;
+#endif
+#if defined(USE_SUIT_18) && defined(HYBRID_FAST_LIBSODIUM)
+	bench_ecdh_alg = H_X25519_KYBER_LEVEL3;
+#endif
+
+	/* select role */
+	const char *role =
+#ifdef INITIATOR
+		"initiator";
+#else
+		"responder";
+#endif
+
+	/* Keep benchmark semantics aligned with target paper variants */
+	bool do_signature_ops = false;
+	#if defined(USE_SUIT_7) || (defined(USE_SUIT_2) && !defined(USE_X5CHAIN))
+	do_signature_ops = true;
+#endif
+
+	/* Prepare buffers from test vector */
+	struct edhoc_initiator_context c_i;
+	struct edhoc_responder_context c_r;
+	const int v = vec_num_i;
+
+	/* Initiator bits */
+	c_i.suites_i.len = test_vectors[v].SUITES_I_len;
+	c_i.suites_i.ptr = (uint8_t *)test_vectors[v].SUITES_I;
+	c_i.sk_i.len = test_vectors[v].sk_i_raw_len;
+	c_i.sk_i.ptr = (uint8_t *)test_vectors[v].sk_i_raw;
+	c_i.pk_i.len = test_vectors[v].pk_i_raw_len;
+	c_i.pk_i.ptr = (uint8_t *)test_vectors[v].pk_i_raw;
+	c_i.x.len = test_vectors[v].x_raw_len;
+	c_i.x.ptr = (uint8_t *)test_vectors[v].x_raw;
+	c_i.g_x.len = test_vectors[v].g_x_raw_len;
+	c_i.g_x.ptr = (uint8_t *)test_vectors[v].g_x_raw;
+
+	/* Responder bits */
+	c_r.sk_r.len = test_vectors[v].sk_r_raw_len;
+	c_r.sk_r.ptr = (uint8_t *)test_vectors[v].sk_r_raw;
+	c_r.pk_r.len = test_vectors[v].pk_r_raw_len;
+	c_r.pk_r.ptr = (uint8_t *)test_vectors[v].pk_r_raw;
+	c_r.y.len = test_vectors[v].y_raw_len;
+	c_r.y.ptr = (uint8_t *)test_vectors[v].y_raw;
+	c_r.g_y.len = test_vectors[v].g_y_raw_len;
+	c_r.g_y.ptr = (uint8_t *)test_vectors[v].g_y_raw;
+
+	/* Message to sign/verify (fixed payload for apples-to-apples timing) */
+	uint8_t sign_msg_buf[64] = {
+		0x50, 0x51, 0x45, 0x44, 0x48, 0x4f, 0x43, 0x2d,
+		0x42, 0x45, 0x4e, 0x43, 0x48, 0x4d, 0x41, 0x52,
+		0x4b, 0x2d, 0x4d, 0x53, 0x47, 0x2d, 0x30, 0x31,
+		0x2d, 0x43, 0x4f, 0x4e, 0x53, 0x49, 0x53, 0x54,
+		0x45, 0x4e, 0x54, 0x2d, 0x50, 0x41, 0x59, 0x4c,
+		0x4f, 0x41, 0x44, 0x2d, 0x41, 0x43, 0x52, 0x4f,
+		0x53, 0x53, 0x2d, 0x53, 0x55, 0x49, 0x54, 0x45,
+		0x53, 0x2d, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58
+	};
+	struct byte_array msg = {.ptr = sign_msg_buf, .len = sizeof(sign_msg_buf)};
+
+	/* Signature keypair + buffers (allocate generously) */
+	uint8_t sk_sig_buf[4096];
+	uint8_t pk_sig_buf[4096];
+	struct byte_array sk_sig = {.ptr = sk_sig_buf, .len = sizeof(sk_sig_buf)};
+	struct byte_array pk_sig = {.ptr = pk_sig_buf, .len = sizeof(pk_sig_buf)};
+	enum err sig_kp_res = ok;
+	bool fast_eddsa_mode = false;
+#if defined(LIBSODIUM)
+#if (defined(USE_SUIT_2) && defined(CLASSIC_FAST_LIBSODIUM)) || \
+	(defined(USE_SUIT_18) && defined(HYBRID_FAST_LIBSODIUM))
+	fast_eddsa_mode = (bench_sign_alg == EdDSA);
+	if (fast_eddsa_mode) {
+		if (sodium_init() < 0) {
+			sig_kp_res = unexpected_result_from_ext_lib;
+		} else if (crypto_sign_keypair(pk_sig.ptr, sk_sig.ptr) == 0) {
+			pk_sig.len = crypto_sign_PUBLICKEYBYTES;
+			sk_sig.len = crypto_sign_SECRETKEYBYTES;
+		} else {
+			sig_kp_res = unexpected_result_from_ext_lib;
+		}
+	}
+#endif
+#endif
+	if (!fast_eddsa_mode) {
+		sig_kp_res = static_signature_key_gen(bench_sign_alg, &sk_sig, &pk_sig);
+	}
+	if (sig_kp_res != ok) {
+		PRINTF("static_signature_key_gen failed (%d), falling back to test vector keys\n", sig_kp_res);
+#ifdef INITIATOR
+		sk_sig = c_i.sk_i;
+		pk_sig = c_i.pk_i;
+#else
+		sk_sig = c_r.sk_r;
+		pk_sig = c_r.pk_r;
+#endif
+		sig_kp_res = ok;
+	}
+
+	uint8_t sig_buf[2048];
+	uint32_t sig_len = sizeof(sig_buf);
+
+	/* HKDF buffers */
+	uint8_t prk_buf[64];
+	uint8_t hkdf_out_buf[64];
+	struct byte_array salt = {.ptr = (uint8_t *)"salt", .len = 4};
+	struct byte_array ikm = {.ptr = (uint8_t *)"ikm", .len = 3};
+	struct byte_array info = {.ptr = (uint8_t *)"info", .len = 4};
+	struct byte_array prk = {.ptr = prk_buf, .len = 32};
+	struct byte_array hkdf_out = {.ptr = hkdf_out_buf, .len = 32};
+
+	/* ECDH shared secret buffer */
+	uint8_t ss_buf[256];
+
+	double keygen_ms = 0.0, encap_ms = 0.0, decap_ms = 0.0;
+	double sig_ms = 0.0, ver_ms = 0.0, ecdh_ms = 0.0, hkdf_ms = -1.0;
+	uint64_t acc_ns = 0;
+
+	/* --- KeyGen / Encap / Decap (only if KEM suite) --- */
+	enum ecdh_alg kem_alg = kem_from_suite(bench_ecdh_alg);
+	if (kem_alg == KYBER_LEVEL1 || kem_alg == KYBER_LEVEL3 || kem_alg == HQC_LEVEL1 || kem_alg == BIKE_LEVEL1) {
+		/* Allocate buffers using compile-time sizes if available */
+#ifdef G_X_SIZE
+		uint8_t pk_kem[G_X_SIZE];
+#else
+		uint8_t pk_kem[2048];
+#endif
+#ifdef G_I_SIZE
+		uint8_t sk_kem[G_I_SIZE];
+#else
+		uint8_t sk_kem[4096];
+#endif
+#ifdef G_Y_SIZE
+		uint8_t ct_kem[G_Y_SIZE];
+#else
+		uint8_t ct_kem[2048];
+#endif
+		uint8_t ss_kem[64];
+
+		struct byte_array pk_arr = {.ptr = pk_kem, .len = sizeof(pk_kem)};
+		struct byte_array sk_arr = {.ptr = sk_kem, .len = sizeof(sk_kem)};
+		struct byte_array ct_arr = {.ptr = ct_kem, .len = sizeof(ct_kem)};
+		struct byte_array ss_arr = {.ptr = ss_kem, .len = sizeof(ss_kem)};
+
+		uint64_t acc_ns = 0;
+		enum err kem_res = ok;
+		for (int i = 0; i < OPS_ITERS; i++) {
+			uint64_t t0 = now_ns();
+			kem_res = ephemeral_kem_key_gen(kem_alg, &sk_arr, &pk_arr);
+			if (kem_res == ok) {
+				acc_ns += now_ns() - t0;
+			} else {
+				keygen_ms = -1.0;
+				acc_ns = 0;
+				break;
+			}
+		}
+		if (acc_ns > 0) {
+			keygen_ms = ns_to_ms((acc_ns + OPS_ITERS - 1) / OPS_ITERS);
+		}
+
+		acc_ns = 0;
+		for (int i = 0; i < OPS_ITERS; i++) {
+			uint64_t t0 = now_ns();
+			kem_res = kem_encapsulate(kem_alg, &pk_arr, &ct_arr, &ss_arr);
+			if (kem_res == ok) {
+				acc_ns += now_ns() - t0;
+			} else {
+				encap_ms = -1.0;
+				acc_ns = 0;
+				break;
+			}
+		}
+		if (acc_ns > 0) {
+			encap_ms = ns_to_ms((acc_ns + OPS_ITERS - 1) / OPS_ITERS);
+		}
+
+		acc_ns = 0;
+		for (int i = 0; i < OPS_ITERS; i++) {
+			uint64_t t0 = now_ns();
+			kem_res = kem_decapsulate(kem_alg, &ct_arr, &sk_arr, &ss_arr);
+			if (kem_res == ok) {
+				acc_ns += now_ns() - t0;
+			} else {
+				decap_ms = -1.0;
+				acc_ns = 0;
+				break;
+			}
+		}
+		if (acc_ns > 0) {
+			decap_ms = ns_to_ms((acc_ns + OPS_ITERS - 1) / OPS_ITERS);
+		}
+	}
+	else if (bench_ecdh_alg == X25519 || bench_ecdh_alg == P256) {
+		/* Classic DH suites: key generation is ephemeral_dh_key_gen */
+	#if defined(CLASSIC_FAST_LIBSODIUM) && defined(USE_SUIT_2)
+		if (bench_ecdh_alg == X25519) {
+			unsigned char pk_tmp[crypto_box_PUBLICKEYBYTES];
+			unsigned char sk_tmp[crypto_box_SECRETKEYBYTES];
+			if (sodium_init() < 0) {
+				keygen_ms = -1.0;
+			} else {
+				acc_ns = 0;
+				for (int i = 0; i < OPS_ITERS; i++) {
+					uint64_t t0 = now_ns();
+					if (crypto_box_keypair(pk_tmp, sk_tmp) == 0) {
+						acc_ns += now_ns() - t0;
+					} else {
+						keygen_ms = -1.0;
+						acc_ns = 0;
+						break;
+					}
+				}
+				if (acc_ns > 0) {
+					keygen_ms = ns_to_ms((acc_ns + OPS_ITERS - 1) / OPS_ITERS);
+				}
+			}
+		} else
+	#endif
+		{
+		uint8_t sk_dh_buf[128];
+		uint8_t pk_dh_buf[128];
+
+		acc_ns = 0;
+		for (int i = 0; i < OPS_ITERS; i++) {
+			struct byte_array sk_dh = {.ptr = sk_dh_buf, .len = sizeof(sk_dh_buf)};
+			struct byte_array pk_dh = {.ptr = pk_dh_buf, .len = sizeof(pk_dh_buf)};
+			uint64_t t0 = now_ns();
+			enum err kg_res = ephemeral_dh_key_gen(bench_ecdh_alg, (uint32_t)i + 1U,
+							      &sk_dh, &pk_dh);
+			if (kg_res == ok) {
+				acc_ns += now_ns() - t0;
+			} else {
+				keygen_ms = -1.0;
+				acc_ns = 0;
+				break;
+			}
+		}
+		if (acc_ns > 0) {
+			keygen_ms = ns_to_ms((acc_ns + OPS_ITERS - 1) / OPS_ITERS);
+		}
+		}
+	}
+
+	/* --- Signature --- */
+	bool sig_ok = do_signature_ops;
+	bool use_pq_signature_path = is_pq_sign_alg(bench_sign_alg);
+	acc_ns = 0;
+	if (do_signature_ops && sig_kp_res != ok) {
+		PRINTF("static_signature_key_gen failed: %d\n", sig_kp_res);
+		sig_ok = false;
+	} else if (do_signature_ops) {
+		uint64_t t_sig_begin = now_ns();
+		for (int i = 0; i < OPS_ITERS; i++) {
+			uint32_t cur_sig_len = sizeof(sig_buf);
+			enum err sig_res;
+		#if defined(CLASSIC_FAST_LIBSODIUM) && defined(USE_SUIT_2)
+			if (bench_sign_alg == EdDSA) {
+				unsigned long long slen = 0;
+				if (sodium_init() < 0) {
+					sig_res = unexpected_result_from_ext_lib;
+				} else if (crypto_sign_detached(sig_buf, &slen, msg.ptr, msg.len,
+							     sk_sig.ptr) == 0) {
+					cur_sig_len = (uint32_t)slen;
+					sig_res = ok;
+				} else {
+					sig_res = sign_failed;
+				}
+			} else
+		#endif
+			if (use_pq_signature_path) {
+				sig_res = sign_signature(bench_sign_alg, &sk_sig, &msg,
+							 sig_buf, &cur_sig_len);
+			} else {
+				sig_res = sign_edhoc(bench_sign_alg, &sk_sig, &pk_sig,
+						     &msg, sig_buf, &cur_sig_len);
+			}
+			if (sig_res == ok) {
+				sig_len = cur_sig_len;
+			} else {
+				PRINTF("signature failed: %d\n", sig_res);
+				sig_ok = false;
+				break;
+			}
+		}
+		if (sig_ok) {
+			acc_ns = now_ns() - t_sig_begin;
+		}
+	}
+	if (do_signature_ops && sig_ok) {
+		sig_ms = ns_to_ms((acc_ns + OPS_ITERS - 1) / OPS_ITERS);
+	} else if (do_signature_ops && !sig_ok) {
+		sig_ms = -1.0;
+	}
+
+	/* --- Verification --- */
+	struct byte_array sig_arr = {.ptr = sig_buf, .len = sig_len};
+	acc_ns = 0;
+	bool ver_ok = true;
+	if (do_signature_ops && sig_ok) {
+		uint64_t t_ver_begin = now_ns();
+		for (int i = 0; i < OPS_ITERS; i++) {
+			enum err ver_res;
+			bool verify_result = false;
+		#if defined(CLASSIC_FAST_LIBSODIUM) && defined(USE_SUIT_2)
+			if (bench_sign_alg == EdDSA) {
+				if (sodium_init() < 0) {
+					ver_res = unexpected_result_from_ext_lib;
+					verify_result = false;
+				} else {
+					int vret = crypto_sign_verify_detached(sig_arr.ptr, msg.ptr,
+								      msg.len, pk_sig.ptr);
+					verify_result = (vret == 0);
+					ver_res = verify_result ? ok : signature_authentication_failed;
+				}
+			} else
+		#elif defined(HYBRID_FAST_LIBSODIUM) && defined(USE_SUIT_18)
+			if (bench_sign_alg == EdDSA) {
+				if (sodium_init() < 0) {
+					ver_res = unexpected_result_from_ext_lib;
+					verify_result = false;
+				} else {
+					int vret = crypto_sign_verify_detached(sig_arr.ptr, msg.ptr,
+								      msg.len, pk_sig.ptr);
+					verify_result = (vret == 0);
+					ver_res = verify_result ? ok : signature_authentication_failed;
+				}
+			} else
+		#endif
+			if (use_pq_signature_path) {
+				ver_res = sign_verify(bench_sign_alg, &pk_sig, &msg,
+					      &sig_arr);
+				verify_result = (ver_res == ok);
+			} else {
+				struct const_byte_array msg_const = {
+					.ptr = msg.ptr,
+					.len = msg.len,
+				};
+				struct const_byte_array sig_const = {
+					.ptr = sig_arr.ptr,
+					.len = sig_arr.len,
+				};
+				ver_res = verify_edhoc(bench_sign_alg, &pk_sig,
+						       &msg_const, &sig_const,
+						       &verify_result);
+			}
+
+			if (ver_res == ok && verify_result) {
+			} else {
+				PRINTF("verification failed: %d (ok=%d)\n", ver_res, verify_result);
+				ver_ok = false;
+				break;
+			}
+		}
+		if (ver_ok) {
+			acc_ns = now_ns() - t_ver_begin;
+		}
+	}
+	if (do_signature_ops && ver_ok) {
+		ver_ms = ns_to_ms((acc_ns + OPS_ITERS - 1) / OPS_ITERS);
+	} else if (do_signature_ops && !ver_ok) {
+		ver_ms = -1.0;
+	}
+
+	/* --- ECDH (only classic + designated hybrid benchmark variant) --- */
+	acc_ns = 0;
+	bool do_ecdh = false;
+#if defined(USE_SUIT_18) || defined(USE_SUIT_2)
+	do_ecdh = true;
+#endif
+	if (do_ecdh) {
+		enum ecdh_alg dh_alg = dh_from_suite(bench_ecdh_alg);
+		enum err ecdh_res = ok;
+	#if (defined(CLASSIC_FAST_LIBSODIUM) && defined(USE_SUIT_2)) || \
+		(defined(HYBRID_FAST_LIBSODIUM) && defined(USE_SUIT_18))
+		if (bench_ecdh_alg == X25519 || bench_ecdh_alg == H_X25519_KYBER_LEVEL3) {
+			unsigned char sk_local[crypto_box_SECRETKEYBYTES];
+			unsigned char pk_local[crypto_box_PUBLICKEYBYTES];
+			unsigned char sk_peer[crypto_box_SECRETKEYBYTES];
+			unsigned char pk_peer[crypto_box_PUBLICKEYBYTES];
+			ecdh_ms = -1.0;
+			if (sodium_init() < 0 ||
+			    crypto_box_keypair(pk_local, sk_local) != 0 ||
+			    crypto_box_keypair(pk_peer, sk_peer) != 0) {
+				ecdh_res = unexpected_result_from_ext_lib;
+			} else {
+				acc_ns = 0;
+				for (int i = 0; i < OPS_ITERS; i++) {
+					uint64_t t0 = now_ns();
+					if (crypto_scalarmult_curve25519(ss_buf, sk_local, pk_peer) == 0) {
+						acc_ns += now_ns() - t0;
+					} else {
+						ecdh_res = unexpected_result_from_ext_lib;
+						break;
+					}
+				}
+				if (ecdh_res == ok) {
+					ecdh_ms = ns_to_ms((acc_ns + OPS_ITERS - 1) / OPS_ITERS);
+				}
+			}
+		}
+		else
+	#endif
+		{
+		uint32_t dh_len = get_ecdh_pk_len(dh_alg);
+		uint8_t sk_local_buf[128];
+		uint8_t pk_local_buf[128];
+		uint8_t sk_peer_buf[128];
+		uint8_t pk_peer_buf[128];
+		struct byte_array sk_local = {.ptr = sk_local_buf, .len = dh_len};
+		struct byte_array pk_local = {.ptr = pk_local_buf, .len = dh_len};
+		struct byte_array sk_peer = {.ptr = sk_peer_buf, .len = dh_len};
+		struct byte_array pk_peer = {.ptr = pk_peer_buf, .len = dh_len};
+
+		ecdh_ms = -1.0;
+		ecdh_res = ephemeral_dh_key_gen(dh_alg, 0xA11CEu, &sk_local, &pk_local);
+		if (ecdh_res != ok) {
+			PRINTF("ecdh keygen local failed: %d\n", ecdh_res);
+		} else {
+			ecdh_res = ephemeral_dh_key_gen(dh_alg, 0xB0Bu, &sk_peer, &pk_peer);
+		}
+
+		for (int i = 0; i < OPS_ITERS && ecdh_res == ok; i++) {
+			uint64_t t0 = now_ns();
+			ecdh_res = shared_secret_derive(dh_alg, &sk_local, &pk_peer, ss_buf);
+			if (ecdh_res == ok) {
+				acc_ns += now_ns() - t0;
+			} else {
+				break;
+			}
+		}
+		if (ecdh_res == ok) {
+			ecdh_ms = ns_to_ms((acc_ns + OPS_ITERS - 1) / OPS_ITERS);
+		}
+		}
+	}
+
+	/* --- HKDF (extract + expand) --- */
+	acc_ns = 0;
+	bool hkdf_ok = true;
+	for (int i = 0; i < OPS_ITERS; i++) {
+		uint64_t t0 = now_ns();
+		if (hkdf_extract(SHA_256, &salt, &ikm, prk.ptr) == ok &&
+			hkdf_expand(SHA_256, &prk, &info, &hkdf_out) == ok) {
+			acc_ns += now_ns() - t0;
+		} else {
+			hkdf_ok = false;
+			break;
+		}
+	}
+	if (hkdf_ok) {
+		hkdf_ms = ns_to_ms((acc_ns + OPS_ITERS - 1) / OPS_ITERS);
+	}
+
+	print_json_row(
+#if defined(USE_SUIT_7)
+		"Type 0 PQ: signature–signature",
+#elif defined(USE_SUIT_17)
+		"Type 3 PQ: mac–mac",
+#elif defined(USE_SUIT_18) && defined(HYBRID_FAST_LIBSODIUM)
+		"Type 3 Hybrid x25519+Kyber (libsodium): mac–mac",
+#elif defined(USE_SUIT_18)
+		"Type 3 Hybrid: mac–mac (PQ+DH hybrid)",
+#elif defined(USE_SUIT_2) && defined(USE_X5CHAIN) && defined(CLASSIC_FAST_LIBSODIUM)
+		"Type 3 Classic x25519+EdDSA (libsodium): mac–mac",
+#elif defined(USE_SUIT_2) && defined(USE_X5CHAIN)
+		"Type 3 Classic P256: mac–mac",
+#elif defined(USE_SUIT_2) && defined(CLASSIC_FAST_LIBSODIUM)
+		"Type 0 Classic x25519+EdDSA (libsodium): signature–signature",
+#elif defined(USE_SUIT_2)
+		"Type 0 Classic P256: signature–signature",
+#else
+		"Unknown",
+#endif
+		role, keygen_ms, encap_ms, decap_ms, sig_ms, ver_ms, ecdh_ms, hkdf_ms);
+}
+#endif /* OPS_BENCH */
+
+
 void main(void)
 {
+#ifdef OPS_BENCH
+	run_ops_bench();
+	exit(0);
+#else
 	k_thread_create(&bench_thread_data, bench_stack,
 			K_THREAD_STACK_SIZEOF(bench_stack),
 			bench_entry, NULL, NULL, NULL,
@@ -1066,4 +1662,5 @@ void main(void)
 	/* Guard: exit the process after BENCH_TIMEOUT_MS to avoid hangs. */
 	k_sleep(K_MSEC(BENCH_TIMEOUT_MS));
 	exit(0);
+#endif
 }

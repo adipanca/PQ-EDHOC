@@ -1,0 +1,43 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/home/ubuntu/PQ-EDHOC/build_ops/suit18_r/CMakeFiles/oscore_edhoc_project"
+		},
+		{
+			"file" : "/home/ubuntu/PQ-EDHOC/build_ops/suit18_r/CMakeFiles/oscore_edhoc_project.rule"
+		},
+		{
+			"file" : "/home/ubuntu/PQ-EDHOC/build_ops/suit18_r/CMakeFiles/oscore_edhoc_project-complete.rule"
+		},
+		{
+			"file" : "/home/ubuntu/PQ-EDHOC/build_ops/suit18_r/uoscore_uedhoc/src/oscore_edhoc_project-stamp/oscore_edhoc_project-build.rule"
+		},
+		{
+			"file" : "/home/ubuntu/PQ-EDHOC/build_ops/suit18_r/uoscore_uedhoc/src/oscore_edhoc_project-stamp/oscore_edhoc_project-configure.rule"
+		},
+		{
+			"file" : "/home/ubuntu/PQ-EDHOC/build_ops/suit18_r/uoscore_uedhoc/src/oscore_edhoc_project-stamp/oscore_edhoc_project-download.rule"
+		},
+		{
+			"file" : "/home/ubuntu/PQ-EDHOC/build_ops/suit18_r/uoscore_uedhoc/src/oscore_edhoc_project-stamp/oscore_edhoc_project-install.rule"
+		},
+		{
+			"file" : "/home/ubuntu/PQ-EDHOC/build_ops/suit18_r/uoscore_uedhoc/src/oscore_edhoc_project-stamp/oscore_edhoc_project-mkdir.rule"
+		},
+		{
+			"file" : "/home/ubuntu/PQ-EDHOC/build_ops/suit18_r/uoscore_uedhoc/src/oscore_edhoc_project-stamp/oscore_edhoc_project-patch.rule"
+		},
+		{
+			"file" : "/home/ubuntu/PQ-EDHOC/build_ops/suit18_r/uoscore_uedhoc/src/oscore_edhoc_project-stamp/oscore_edhoc_project-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"oscore_edhoc_project"
+		],
+		"name" : "oscore_edhoc_project"
+	}
+}

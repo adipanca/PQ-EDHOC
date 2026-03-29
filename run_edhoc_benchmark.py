@@ -30,6 +30,7 @@ import subprocess
 import sys
 import time
 import statistics
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Sequence, Tuple
@@ -38,6 +39,12 @@ from typing import Dict, List, Sequence, Tuple
 ROOT = Path(__file__).resolve().parent
 TEST_APP = ROOT / "test_pq_mem"
 ELF_PATH = TEST_APP / "build" / "zephyr" / "zephyr.elf"
+
+
+@dataclass
+class BuildConfig:
+    backend: str  # west | cmake
+    west_cmd: List[str] | None = None
 
 
 @dataclass
@@ -88,16 +95,91 @@ def run_cmd(cmd: Sequence[str], cwd: Path, *, capture: bool = True) -> str:
     return getattr(result, "stdout", "")
 
 
-def build_variant(variant: Variant, board: str, pristine: bool, show_output: bool, role: str) -> None:
-    cmd = ["west", "build", "-b", board]
-    if pristine:
-        cmd += ["-p", "always"]
+def can_run_python_west() -> bool:
+    try:
+        result = subprocess.run([sys.executable, "-m", "west", "--version"], capture_output=True, text=True)
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
+def has_west_build_command(west_cmd: Sequence[str]) -> bool:
+    try:
+        result = subprocess.run([*west_cmd, "build", "-h"], cwd=str(ROOT), capture_output=True, text=True)
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
+def detect_build_config(force_backend: str = "auto") -> BuildConfig:
+    if force_backend not in {"auto", "west", "cmake"}:
+        raise ValueError(f"Unknown backend: {force_backend}")
+
+    west_bin = shutil.which("west")
+    west_cmd = ["west"] if west_bin else None
+    if west_cmd is None and can_run_python_west():
+        west_cmd = [sys.executable, "-m", "west"]
+
+    if force_backend == "west":
+        if west_cmd is None:
+            raise RuntimeError(
+                "west is not available (binary nor `python -m west`). "
+                "Install west or use --build-backend cmake with a prepared Zephyr environment."
+            )
+        if not has_west_build_command(west_cmd):
+            raise RuntimeError(
+                "west is available but `west build` is not usable in this directory. "
+                "This usually means no initialized west workspace."
+            )
+        return BuildConfig(backend="west", west_cmd=list(west_cmd))
+
+    if force_backend == "cmake":
+        return BuildConfig(backend="cmake", west_cmd=None)
+
+    # auto mode
+    if west_cmd is not None and has_west_build_command(west_cmd):
+        return BuildConfig(backend="west", west_cmd=list(west_cmd))
+    return BuildConfig(backend="cmake", west_cmd=None)
+
+
+def build_variant(variant: Variant, board: str, pristine: bool, show_output: bool, role: str, cfg: BuildConfig) -> None:
     # Define only the active role; avoid defining the other, since the code uses
     # `#ifdef INITIATOR` / `#ifdef RESPONDER` and even `-DRESPONDER=0` counts as
     # defined. This keeps the initiator-only and responder-only builds distinct.
     role_flags = ["-DINITIATOR=1"] if role == "initiator" else ["-DRESPONDER=1"]
-    cmd += ["--"] + variant.cmake_flags + role_flags
-    run_cmd(cmd, cwd=TEST_APP, capture=not show_output)
+
+    if cfg.backend == "west":
+        if not cfg.west_cmd:
+            raise RuntimeError("Internal error: west backend selected without west command")
+        cmd = [*cfg.west_cmd, "build", "-b", board]
+        if pristine:
+            cmd += ["-p", "always"]
+        cmd += ["--"] + variant.cmake_flags + role_flags
+        run_cmd(cmd, cwd=TEST_APP, capture=not show_output)
+        return
+
+    # cmake backend (works when Zephyr CMake package/environment is prepared)
+    if "ZEPHYR_BASE" not in os.environ:
+        raise RuntimeError(
+            "CMake backend requires Zephyr environment (`ZEPHYR_BASE`) but it is not set."
+        )
+
+    build_dir = TEST_APP / "build"
+    if pristine and build_dir.exists():
+        shutil.rmtree(build_dir)
+
+    cmake_cmd = [
+        "cmake",
+        "-S",
+        str(TEST_APP),
+        "-B",
+        str(build_dir),
+        "-DBOARD=" + board,
+        *variant.cmake_flags,
+        *role_flags,
+    ]
+    run_cmd(cmake_cmd, cwd=ROOT, capture=not show_output)
+    run_cmd(["cmake", "--build", str(build_dir)], cwd=ROOT, capture=not show_output)
 
 
 def parse_size_output(text: str) -> tuple[int, int, int]:
@@ -177,13 +259,36 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--timeout", type=int, default=180, help="Timeout seconds for run (default: 180)")
     parser.add_argument("--print-run-output", action="store_true", help="Print stdout from the run when measuring CPU")
     parser.add_argument("--show-build-output", action="store_true", help="Stream west build output (less silent)")
+    parser.add_argument(
+        "--build-backend",
+        choices=["auto", "west", "cmake"],
+        default="auto",
+        help="Build backend: auto (default), west, or cmake",
+    )
     parser.add_argument("--write-csv", metavar="PATH", help="Write rows to CSV file (e.g., benchmarks_edhoc.csv)")
     parser.add_argument("--overwrite-csv", action="store_true", help="Rewrite CSV (header + rows) instead of appending")
     parser.add_argument("--skip-timeouts", action="store_true", help="Skip rows where run hit timeout placeholder")
     args = parser.parse_args(argv)
 
     if "ZEPHYR_BASE" not in os.environ:
-        print("WARNING: ZEPHYR_BASE is not set; ensure environment is prepared", file=sys.stderr)
+        print("WARNING: ZEPHYR_BASE is not set; Zephyr environment may be incomplete", file=sys.stderr)
+
+    try:
+        cfg = detect_build_config(args.build_backend)
+    except RuntimeError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 2
+
+    print(f"[INFO] build backend: {cfg.backend}")
+    if cfg.backend == "west" and cfg.west_cmd:
+        print(f"[INFO] west command: {' '.join(cfg.west_cmd)}")
+    if cfg.backend == "cmake" and "ZEPHYR_BASE" not in os.environ:
+        print(
+            "ERROR: cmake backend selected but ZEPHYR_BASE is not set. "
+            "Set up Zephyr env or use a valid west workspace.",
+            file=sys.stderr,
+        )
+        return 2
 
     selected = {v.key: v for v in VARIANTS}
     if args.variant:
@@ -200,7 +305,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         for role in ("initiator", "responder"):
             try:
                 print(f"[BUILD] {v.label} ({v.key}) role={role}", flush=True)
-                build_variant(v, board=args.board, pristine=pristine, show_output=args.show_build_output, role=role)
+                build_variant(v, board=args.board, pristine=pristine, show_output=args.show_build_output, role=role, cfg=cfg)
                 size_out = run_cmd(["size", str(ELF_PATH)], cwd=TEST_APP / "build" / "zephyr")
                 text_b, data_b, bss_b = parse_size_output(size_out)
                 ram_kb = kb(data_b + bss_b)
@@ -237,6 +342,14 @@ def main(argv: Sequence[str] | None = None) -> int:
 
                 timed_out_any = timed_out_any or timed_out
                 print(f"  text={text_b} data={data_b} bss={bss_b} -> RAM={ram_kb} KB")
+            except RuntimeError as e:
+                print(f"ERROR during {v.label} ({role}):\n{e}", file=sys.stderr)
+                print(
+                    "Hint: ensure a valid west workspace with Zephyr modules, "
+                    "or use --build-backend cmake after sourcing Zephyr env (ZEPHYR_BASE).",
+                    file=sys.stderr,
+                )
+                return 2
             except KeyboardInterrupt:
                 print(f"\nInterrupted during {v.label} ({role}); writing collected rows and exiting early.")
                 break

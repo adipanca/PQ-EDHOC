@@ -133,25 +133,43 @@ Use `run_edhoc_benchmark.py` to build and collect RAM/CPU numbers for the Zephyr
 **Requirements**
 - Zephyr SDK/toolchain on PATH (tested with Zephyr 3.6.0 and `native_posix_64`).
 - Python 3.8+.
+- One of these build environments:
+  - **West workspace ready** (supports `west build`), or
+  - **CMake Zephyr env ready** (`ZEPHYR_BASE` exported) for `--build-backend cmake`.
 
 **Quick commands**
-- Memory-only (fastest) and overwrite the CSV:
+- Memory-only (fastest), auto backend selection, and overwrite the CSV:
    ```
-   python3 run_edhoc_benchmark.py --overwrite-csv --write-csv
+   python3 run_edhoc_benchmark.py --build-backend auto --overwrite-csv --write-csv benchmarks_edhoc.csv
    ```
 - CPU + memory (slower) with build logs, 10s timeout, and skip timed-out runs:
    ```
    python3 run_edhoc_benchmark.py \
+      --build-backend auto \
       --show-build-output --run-cpu --timeout 10 --skip-timeouts \
-      --overwrite-csv --write-csv
+      --overwrite-csv --write-csv benchmarks_edhoc.csv
+   ```
+
+- Force backend explicitly (recommended for CI reproducibility):
+   ```
+   python3 run_edhoc_benchmark.py --build-backend west --overwrite-csv --write-csv benchmarks_edhoc.csv
+   python3 run_edhoc_benchmark.py --build-backend cmake --overwrite-csv --write-csv benchmarks_edhoc.csv
    ```
 
 **Flags to know**
 - `--overwrite-csv` writes a fresh header to `benchmarks_edhoc.csv` before appending results.
 - `--write-csv` enables CSV output (otherwise prints to stdout only).
+- `--build-backend` controls build driver:
+  - `auto`: try `west` first when usable, otherwise fallback to `cmake`.
+  - `west`: require a valid West workspace.
+  - `cmake`: require Zephyr CMake environment (including `ZEPHYR_BASE`).
 - `--run-cpu` adds CPU timing runs; omit to collect RAM-only.
 - `--timeout` caps each binary run; pair with `--skip-timeouts` to drop stalled variants instead of recording zeroes.
 - `--show-build-output` streams the Zephyr build log.
+
+**Troubleshooting cepat**
+- Jika muncul `unknown command "build"` dari `west`, berarti environment belum berupa workspace West yang valid.
+- Jika backend jatuh ke `cmake` lalu gagal karena `ZEPHYR_BASE` tidak diset, source environment Zephyr dulu atau gunakan backend `west` pada workspace yang benar.
 
 Output lives in `benchmarks_edhoc.csv` with columns: `label,runs,median_cpu_initiator,median_cpu_responder,median_mem_init_kb,median_mem_resp_kb`.
 
@@ -170,6 +188,36 @@ Catatan:
 - Role initiator/responder dikontrol oleh `-DINITIATOR` atau `-DRESPONDER` yang diset otomatis oleh skrip.
 - Algoritma AEAD/hash untuk semua varian: AES-CCM-16-64-128 dan SHA-256 (sesuai definisi suite).
 - Lokasi sumber utama: `test_pq_mem/main.c` (harness) dan modul `src/edhoc/*`, `src/oscore/*`, `src/common/*`, `src/cbor/*`.
+
+## Benchmark per operasi kripto
+Firmware `test_pq_mem` kini dapat dibangun dengan `-DOPS_BENCH` untuk mencetak durasi tiap operasi dalam satu baris JSON. Contoh output:
+
+```
+{"label":"Type 0 PQ: signature–signature","role":"initiator","ops":{"KeyGen":2,"Encap":3,"Decap":4,"Signature":1,"Verification":1,"ECDH":1,"HKDF":0}}
+```
+
+Setiap baris merepresentasikan satu peran (initiator/responder) dan satu varian suite yang dikompilasi. Kolom: `KeyGen, Encap, Decap, Signature, Verification, ECDH, HKDF` dalam milidetik.
+
+### Langkah mengambil data ops (native_posix_64)
+1) Bangun firmware per peran dengan makro suite yang diinginkan, misalnya hybrid mac–mac:
+```bash
+west build -b native_posix_64 test_pq_mem -- -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DOPS_BENCH=ON -DUSE_SUIT_18=ON -DUSE_X5T=ON -DRESPONDER=ON
+# ulangi untuk INITIATOR dengan -DINITIATOR=ON dan hapus -DRESPONDER
+```
+2) Jalankan binari dan simpan stdout masing-masing peran ke file log.
+```bash
+./build/zephyr/zephyr.exe > responder.log
+./build/zephyr/zephyr.exe > initiator.log
+```
+3) Gabungkan log (atau berikan keduanya) ke `run_ops_benchmark.py` untuk menghasilkan CSV:
+```bash
+python3 run_ops_benchmark.py responder.log initiator.log --write-csv benchmarks_ops.csv
+```
+
+Format kolom CSV: `label,role,KeyGen,Encap,Decap,Signature,Verification,ECDH,HKDF`.
+
+### Benchmark breakdown (ms) per operasi
+`run_ops_breakdown.py` tetap menulis `benchmark_breakdown.csv` dengan format sama; untuk nilai aktual gunakan alur log JSON di atas lalu konversi dengan `run_ops_benchmark.py`.
 
 ## Linux Examples
 For more details on each example, check the corresponding **README** file.

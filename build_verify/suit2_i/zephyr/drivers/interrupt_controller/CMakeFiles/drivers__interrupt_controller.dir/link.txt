@@ -1,0 +1,2 @@
+/usr/bin/ar qc libdrivers__interrupt_controller.a CMakeFiles/drivers__interrupt_controller.dir/home/ubuntu/zephyrproject/zephyr/misc/empty_file.c.obj
+/usr/bin/ranlib libdrivers__interrupt_controller.a

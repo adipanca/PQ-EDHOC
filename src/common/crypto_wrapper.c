@@ -67,6 +67,10 @@ modify setting in include/psa/crypto_config.h
 #include <oqs/kem.h>
 #endif
 
+#ifdef LIBSODIUM
+#include <sodium.h>
+#endif
+
 #ifdef PQM4
 #include <api.h>
 #ifdef HAETAE_LEVEL_2
@@ -498,6 +502,23 @@ enum err WEAK static_signature_key_gen(enum sign_alg alg, struct byte_array *sk,
 				       struct byte_array *pk)
 {
 	int ret = 0;
+#ifdef LIBSODIUM
+	if (alg == EdDSA) {
+		if (sodium_init() < 0) {
+			return unexpected_result_from_ext_lib;
+		}
+		if (pk->len < crypto_sign_PUBLICKEYBYTES ||
+		    sk->len < crypto_sign_SECRETKEYBYTES) {
+			return buffer_to_small;
+		}
+		if (crypto_sign_keypair(pk->ptr, sk->ptr) != 0) {
+			return unexpected_result_from_ext_lib;
+		}
+		pk->len = crypto_sign_PUBLICKEYBYTES;
+		sk->len = crypto_sign_SECRETKEYBYTES;
+		return ok;
+	}
+#endif
 #ifdef MUPQ
 	/*PQM4 API*/
 	if ((ret == 0) && (crypto_sign_keypair(pk->ptr, sk->ptr) != 0)) {
@@ -1033,10 +1054,23 @@ enum err WEAK sign_edhoc(enum sign_alg alg, const struct byte_array *sk,
 
 	if (alg == EdDSA) {
 		PRINT_MSG("EdDSA signature\n");
+#ifdef LIBSODIUM
+		if (sodium_init() < 0) {
+			return unexpected_result_from_ext_lib;
+		}
+		unsigned long long sodium_sig_len = 0;
+		if (crypto_sign_detached(out, &sodium_sig_len, msg->ptr,
+					 msg->len, sk->ptr) != 0) {
+			return sign_failed;
+		}
+		*out_len = (uint32_t)sodium_sig_len;
+		return ok;
+#endif
 #ifdef DH
 #if defined(COMPACT25519)
 		PRINT_MSG("COMPACT25519 signature\n");
 		edsign_sign(out, pk->ptr, sk->ptr, msg->ptr, msg->len);
+		*out_len = 64;
 		return ok;
 #endif
 #endif
@@ -1121,6 +1155,18 @@ enum err WEAK verify_edhoc(enum sign_alg alg, const struct byte_array *pk,
 			   struct const_byte_array *sgn, bool *result)
 {
 	if (alg == EdDSA) {
+#ifdef LIBSODIUM
+		if (sodium_init() < 0) {
+			return unexpected_result_from_ext_lib;
+		}
+		if (crypto_sign_verify_detached(sgn->ptr, msg->ptr, msg->len,
+					       pk->ptr) == 0) {
+			*result = true;
+		} else {
+			*result = false;
+		}
+		return ok;
+#endif
 #ifdef DH
 #ifdef COMPACT25519
 		int verified =
@@ -1367,6 +1413,16 @@ enum err WEAK shared_secret_derive(enum ecdh_alg alg,
 #ifdef DH
 	PRINT_MSG("SHARED SECRET DERIVE\n");
 	if ((alg == X25519) || (alg == H_X25519_KYBER_LEVEL3)) {
+#ifdef LIBSODIUM
+		if (sodium_init() < 0) {
+			return unexpected_result_from_ext_lib;
+		}
+		if (crypto_scalarmult_curve25519(shared_secret, sk->ptr,
+						 pk->ptr) != 0) {
+			return ecdh_shared_secret_failed;
+		}
+		return ok;
+#endif
 #ifdef COMPACT25519
 		uint8_t e[F25519_SIZE];
 		f25519_copy(e, sk->ptr);
@@ -1485,6 +1541,21 @@ enum err WEAK ephemeral_dh_key_gen(enum ecdh_alg alg, uint32_t seed,
 {
 #ifdef DH
 	if (alg == X25519) {
+#ifdef LIBSODIUM
+		if (sodium_init() < 0) {
+			return unexpected_result_from_ext_lib;
+		}
+		if (pk->len < crypto_box_PUBLICKEYBYTES ||
+		    sk->len < crypto_box_SECRETKEYBYTES) {
+			return buffer_to_small;
+		}
+		if (crypto_box_keypair(pk->ptr, sk->ptr) != 0) {
+			return ecdh_key_generation_failed;
+		}
+		pk->len = crypto_box_PUBLICKEYBYTES;
+		sk->len = crypto_box_SECRETKEYBYTES;
+		return ok;
+#endif
 #ifdef COMPACT25519
 		uint8_t extended_seed[32];
 #if defined(TINYCRYPT)

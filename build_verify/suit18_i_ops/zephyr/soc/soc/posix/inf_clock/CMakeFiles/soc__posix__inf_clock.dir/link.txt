@@ -1,0 +1,2 @@
+/usr/bin/ar qc libsoc__posix__inf_clock.a CMakeFiles/soc__posix__inf_clock.dir/soc.c.obj CMakeFiles/soc__posix__inf_clock.dir/native_tasks.c.obj
+/usr/bin/ranlib libsoc__posix__inf_clock.a

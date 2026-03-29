@@ -1,0 +1,19 @@
+# Available runners configured by board.cmake.
+runners:
+- native_gdb
+
+# Default debug runner if --runner is not given.
+debug-runner: native_gdb
+
+# Common runner configuration values.
+config:
+  board_dir: /home/ubuntu/zephyrproject/zephyr/boards/posix/native_posix
+  # Build outputs:
+  elf_file: zephyr.elf
+  exe_file: zephyr.exe
+
+# Runner specific arguments
+args:
+  native_gdb:
+    []
+

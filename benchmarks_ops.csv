@@ -1,0 +1,11 @@
+label,role,KeyGen,Encap,Decap,Signature,Verification,ECDH,HKDF
+Type 0 PQ: signature–signature,initiator,0.0156,0.0191,0.02312,0.12351,0.01549,0.0,0.00213
+Type 0 PQ: signature–signature,responder,0.01653,0.01899,0.02276,0.12464,0.01571,0.0,0.0024
+Type 3 PQ: mac–mac,initiator,0.01636,0.01916,0.02319,0.0,0.0,0.0,0.0022
+Type 3 PQ: mac–mac,responder,0.01644,0.01888,0.02351,0.0,0.0,0.0,0.00217
+Type 3 Hybrid x25519+Kyber (libsodium): mac–mac,initiator,0.02741,0.02818,0.03612,0.0,0.0,0.02975,0.00219
+Type 3 Hybrid x25519+Kyber (libsodium): mac–mac,responder,0.0278,0.02802,0.03563,0.0,0.0,0.02993,0.00239
+Type 0 Classic x25519+EdDSA (libsodium): signature–signature,initiator,0.011883,0.0,0.0,0.012422,0.036551,0.028627,0.002137
+Type 0 Classic x25519+EdDSA (libsodium): signature–signature,responder,0.011978,0.0,0.0,0.012331,0.033797,0.028568,0.002103
+Type 3 Classic x25519+EdDSA (libsodium): mac–mac,initiator,0.014157,0.0,0.0,0.0,0.0,0.028455,0.002139
+Type 3 Classic x25519+EdDSA (libsodium): mac–mac,responder,0.014099,0.0,0.0,0.0,0.0,0.028599,0.002116

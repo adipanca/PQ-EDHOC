@@ -19,6 +19,10 @@ option(USE_SUIT_18 "Enable SUIT 18" OFF)
 option(USE_SUIT_17 "Enable SUIT 17" OFF)
 option(USE_SUIT_19 "Enable SUIT 19" OFF)
 option(USE_SUIT_20 "Enable SUIT 20" OFF)
+option(USE_LIBSODIUM_CLASSIC "Enable libsodium backend for classic X25519/EdDSA fast path" OFF)
+option(USE_CLASSIC_FAST_BENCH "Force classic benchmark fast profile (X25519 + EdDSA)" OFF)
+option(USE_LIBSODIUM_HYBRID "Enable libsodium backend for hybrid x25519 operations" OFF)
+option(USE_HYBRID_FAST_BENCH "Force hybrid benchmark fast profile (x25519+Kyber)" OFF)
 
 if(USE_SUIT_2)
   message(STATUS "SUIT 2 enable")
@@ -48,6 +52,27 @@ if(USE_SUIT_2)
   #  ../externals/mbedtls/include/psa
     ../externals/tinycrypt/lib/include)
   target_compile_definitions(app PRIVATE USE_SUIT_2)
+
+  if(USE_LIBSODIUM_CLASSIC)
+    find_path(SODIUM_INCLUDE_DIR sodium.h
+      HINTS /usr/include /usr/local/include
+      PATH_SUFFIXES sodium)
+    find_library(SODIUM_LIBRARY sodium
+      HINTS /usr/lib /usr/local/lib /usr/lib/aarch64-linux-gnu /lib/aarch64-linux-gnu
+      PATH_SUFFIXES aarch64-linux-gnu)
+    if(NOT SODIUM_INCLUDE_DIR OR NOT SODIUM_LIBRARY)
+      message(FATAL_ERROR "USE_LIBSODIUM_CLASSIC=ON but libsodium not found (need sodium.h and libsodium)")
+    endif()
+    target_include_directories(app PRIVATE ${SODIUM_INCLUDE_DIR})
+    target_link_libraries(app PRIVATE ${SODIUM_LIBRARY})
+    target_compile_definitions(app PRIVATE LIBSODIUM)
+    if(USE_CLASSIC_FAST_BENCH)
+      target_compile_definitions(app PRIVATE CLASSIC_FAST_LIBSODIUM)
+      message(STATUS "Classic fast benchmark profile enabled: X25519 + EdDSA (libsodium)")
+    else()
+      message(STATUS "libsodium linked; benchmark remains in fair suite-defined classic mode")
+    endif()
+  endif()
 endif()
 
 if(USE_SUIT_7)
@@ -559,6 +584,27 @@ if(USE_SUIT_18)
     ../externals/pqm4/mupq/common
     ../externals/pqm4/libopencm3/include)
   target_compile_definitions(app PRIVATE USE_SUIT_18)
+
+  if(USE_LIBSODIUM_HYBRID)
+    find_path(SODIUM_INCLUDE_DIR sodium.h
+      HINTS /usr/include /usr/local/include
+      PATH_SUFFIXES sodium)
+    find_library(SODIUM_LIBRARY sodium
+      HINTS /usr/lib /usr/local/lib /usr/lib/aarch64-linux-gnu /lib/aarch64-linux-gnu
+      PATH_SUFFIXES aarch64-linux-gnu)
+    if(NOT SODIUM_INCLUDE_DIR OR NOT SODIUM_LIBRARY)
+      message(FATAL_ERROR "USE_LIBSODIUM_HYBRID=ON but libsodium not found (need sodium.h and libsodium)")
+    endif()
+    target_include_directories(app PRIVATE ${SODIUM_INCLUDE_DIR})
+    target_link_libraries(app PRIVATE ${SODIUM_LIBRARY})
+    target_compile_definitions(app PRIVATE LIBSODIUM)
+    if(USE_HYBRID_FAST_BENCH)
+      target_compile_definitions(app PRIVATE HYBRID_FAST_LIBSODIUM)
+      message(STATUS "Hybrid fast benchmark profile enabled: x25519+Kyber (libsodium)")
+    else()
+      message(STATUS "libsodium linked for hybrid build; benchmark remains in suite-defined hybrid mode")
+    endif()
+  endif()
 endif()
 
 
