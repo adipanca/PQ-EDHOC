@@ -244,6 +244,22 @@
 #define G_Y_SIZE_F G_Y_SIZE
 #endif
 
+/*
+ * Timing benchmarks exercise the largest hybrid/PQ transcripts; give the
+ * ephemeral key buffers enough slack to avoid buffer_to_small even when
+ * the negotiated suite size exceeds the compile-time expectation.
+ */
+#if defined(HANDSHAKE_TIMING_BENCH)
+#undef G_X_SIZE
+#undef G_X_SIZE_F
+#undef G_Y_SIZE
+#undef G_Y_SIZE_F
+#define G_X_SIZE MSG_MAX_SIZE
+#define G_X_SIZE_F MSG_MAX_SIZE
+#define G_Y_SIZE MSG_MAX_SIZE
+#define G_Y_SIZE_F MSG_MAX_SIZE
+#endif
+
 #define CRED_I_SIZE PK_SIZE + SIGNATURE_SIZE + 200
 #define CRED_R_SIZE PK_SIZE + SIGNATURE_SIZE + 200
 
@@ -252,12 +268,25 @@
 #define ID_CRED_I_SIZE PK_SIZE + SIGNATURE_SIZE + 200
 #endif
 
+/*
+ * Timing benchmarks exercise oversized X.509/X5T ID_CRED fields (e.g.,
+ * suite 9 PQ vectors). Give ID_CRED buffers enough headroom so that
+ * plaintext_2/3, SIG_STRUCTURE, and related CBOR encodings do not hit
+ * buffer_to_small at runtime.
+ */
+#if defined(HANDSHAKE_TIMING_BENCH)
+#undef ID_CRED_I_SIZE
+#undef ID_CRED_R_SIZE
+#define ID_CRED_I_SIZE 2048
+#define ID_CRED_R_SIZE 2048
+#endif
+
 #ifndef ID_CRED_I_SIZE
-#define ID_CRED_I_SIZE 400
+#define ID_CRED_I_SIZE 2048
 #endif
 
 #ifndef ID_CRED_R_SIZE
-#define ID_CRED_R_SIZE 400
+#define ID_CRED_R_SIZE 2048
 #endif
 
 #ifndef CRED_I_SIZE
@@ -318,7 +347,23 @@
 
 #define MSG12_MAX MAX(MSG_1_SIZE, MSG_2_SIZE)
 #define MSG34_MAX MAX(MSG_3_SIZE, MSG_4_SIZE)
-#define MSG_MAX_SIZE MAX(MSG12_MAX, MSG34_MAX)
+
+/*
+ * Give timing/benchmark builds extra headroom so oversized hybrid/PQ
+ * transcripts (e.g., SUITE_17 message_1 > 1500 bytes) do not trigger
+ * buffer_to_small during the in-memory transport.
+ */
+#define MSG_MAX_BASE MAX(MSG12_MAX, MSG34_MAX)
+#if defined(HANDSHAKE_TIMING_BENCH)
+/*
+ * Benchmarks run with oversized hybrid/PQ vectors; give them ample slack.
+ * Use generous headroom (4 KiB) to avoid buffer_to_small when copying
+ * large messages through the in-memory transport.
+ */
+#define MSG_MAX_SIZE 4096
+#else
+#define MSG_MAX_SIZE MSG_MAX_BASE
+#endif
 #define PLAINTEXT23_MAX_SIZE MAX(PLAINTEXT2_SIZE, PLAINTEXT3_SIZE)
 #define CRED_MAX_SIZE MAX(CRED_R_SIZE, CRED_I_SIZE)
 #define ID_CRED_MAX_SIZE MAX(ID_CRED_R_SIZE, ID_CRED_I_SIZE)
@@ -337,6 +382,17 @@
 #define CONTEXT_MAC_SIZE                                                       \
 	AS_BSTR_SIZE(AS_BSTR_SIZE(C_R_SIZE) + AS_BSTR_SIZE(HASH_SIZE) +        \
 		     ID_CRED_MAX_SIZE + CRED_MAX_SIZE + EAD_SIZE)
+
+/*
+ * Benchmark vectors (e.g., SUITE_9 PQ credentials with X.509 thumbprints)
+ * have very large ID_CRED/CRED payloads, which can overflow the standard
+ * CONTEXT_MAC_SIZE calculation. Provide generous headroom during timing
+ * runs to avoid buffer_to_small failures when forming MAC contexts.
+ */
+#if defined(HANDSHAKE_TIMING_BENCH)
+#undef CONTEXT_MAC_SIZE
+#define CONTEXT_MAC_SIZE 4096
+#endif
 
 #define INFO_MAX_SIZE CONTEXT_MAC_SIZE + 2 * CBOR_ENCODED_UINT
 

@@ -105,7 +105,7 @@ enum err msg1_gen(const struct edhoc_initiator_context *c,
 		m1.message_1_C_I_bstr.len = c->c_i.len;
 	}
 
-	if (c->ead_1.len != 0) {
+	if (c->ead_1.len > 0) {
 		/* ead_1 unprotected opaque auxiliary data */
 		m1.message_1_ead_1.value = c->ead_1.ptr;
 		m1.message_1_ead_1.len = c->ead_1.len;
@@ -113,6 +113,14 @@ enum err msg1_gen(const struct edhoc_initiator_context *c,
 	} else {
 		m1.message_1_ead_1_present = false;
 	}
+
+	/* Diagnose encoding buffer space before invoking zcbor. */
+	PRINT_MSG("msg1_gen diagnostics:\n");
+	PRINTF("  rc->msg.len=%u (MSG_MAX_SIZE=%u)\n", rc->msg.len,
+	       (uint32_t)MSG_MAX_SIZE);
+	PRINTF("  g_x.len=%u\n", (uint32_t)m1.message_1_G_X.len);
+	PRINTF("  suites_i.len=%u last_suite=%d\n", (uint32_t)c->suites_i.len,
+	       (int)(c->suites_i.len ? c->suites_i.ptr[c->suites_i.len - 1] : -1));
 
 	size_t payload_len_out;
 	TRY_EXPECT(cbor_encode_message_1(rc->msg.ptr, rc->msg.len, &m1,
@@ -161,7 +169,12 @@ static enum err msg2_process(const struct edhoc_initiator_context *c,
 		g_y_size = get_ecdh_pk_len(rc->suite.edhoc_ecdh);
 	}
 
-	BYTE_ARRAY_NEW(g_y, G_Y_SIZE_F, g_y_size);
+	printf("g_y_size=%u G_Y_SIZE_F=%u\n", g_y_size,
+	       (uint32_t)G_Y_SIZE_F);
+	fflush(stdout);
+	TRY(check_buffer_size(G_Y_SIZE_F, g_y_size));
+	uint8_t g_y_buf[G_Y_SIZE_F];
+	struct byte_array g_y = BYTE_ARRAY_INIT(g_y_buf, g_y_size);
 	uint32_t ciphertext_len = rc->msg.len - g_y.len;
 
 	ciphertext_len -= BSTR_ENCODING_OVERHEAD(ciphertext_len);
@@ -412,6 +425,16 @@ enum err edhoc_initiator_run_extended(
 {
 	struct runtime_context rc = { 0 };
 	runtime_context_init(&rc);
+	/*
+	 * Some builds (notably type0 PQ timing) observed rc.msg.len coming out
+	 * as 0 even after runtime_context_init. Force the message buffer pointer
+	 * and capacity here to ensure zcbor sees the full MSG_MAX_SIZE.
+	 */
+	rc.msg.ptr = rc.msg_buf;
+	rc.msg.len = MSG_MAX_SIZE;
+	PRINT_MSG("[initiator] runtime_context after init:\n");
+	PRINTF("  rc.msg.len=%u MSG_MAX_SIZE=%u\n", rc.msg.len,
+	       (uint32_t)MSG_MAX_SIZE);
 	//printf("----------------- PQ EDHOC HANDSHAKE ------------------\n");
 	//printf("Generating message 1....\n");
 	/*create and send message 1*/

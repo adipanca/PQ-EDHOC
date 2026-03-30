@@ -19,6 +19,14 @@
 
 enum sgn_or_mac_op { VERIFY, GENERATE };
 
+struct signature_or_mac_stats {
+   uint32_t signatures_generated;
+   uint32_t signatures_verified;
+};
+
+void signature_or_mac_reset_stats(void);
+void signature_or_mac_get_stats(struct signature_or_mac_stats *out);
+
 /**
  * @brief                        Computes or verify a signature or a mac.
  * 

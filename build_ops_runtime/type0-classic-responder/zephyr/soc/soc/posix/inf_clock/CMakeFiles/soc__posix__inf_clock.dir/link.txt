@@ -1,0 +1,2 @@
+/home/ubuntu/zephyr-sdk-fake/sysroots/aarch64-pokysdk-linux/usr/bin/ar qc libsoc__posix__inf_clock.a CMakeFiles/soc__posix__inf_clock.dir/soc.c.obj CMakeFiles/soc__posix__inf_clock.dir/native_tasks.c.obj
+/home/ubuntu/zephyr-sdk-fake/sysroots/aarch64-pokysdk-linux/usr/bin/ranlib libsoc__posix__inf_clock.a

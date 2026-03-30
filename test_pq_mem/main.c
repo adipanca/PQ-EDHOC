@@ -4,6 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0 or MIT
  */
 
+#ifndef _POSIX_C_SOURCE
+#define _POSIX_C_SOURCE 200809L
+#endif
+
 #include <zephyr/kernel.h>
 //#include <zephyr/ztest.h>
 #include <zephyr/debug/thread_analyzer.h>
@@ -12,6 +16,7 @@
 #include <string.h>
 #include <time.h>
 #include <sys/time.h>
+#include <stdbool.h>
 #ifdef LIBSODIUM
 #include <sodium.h>
 #endif
@@ -230,6 +235,14 @@ volatile uint64_t times = INTERACTION_NUM;
 
 #endif
 
+/* Optional override to pick a specific test vector index (X5T/X5CHAIN) */
+#ifdef TEST_VECTOR_IDX_OVERRIDE
+#undef TEST_X5T_NUM
+#define TEST_X5T_NUM TEST_VECTOR_IDX_OVERRIDE
+#undef TEST_X5CHAIN_NUM
+#define TEST_X5CHAIN_NUM TEST_VECTOR_IDX_OVERRIDE
+#endif
+
 #ifdef USE_X5CHAIN
 #define TEST_NUM TEST_X5CHAIN_NUM
 #define STACKSIZE_I STACKSIZE_I_X5CHAIN
@@ -243,6 +256,24 @@ volatile uint64_t times = INTERACTION_NUM;
 #define MAX_MSG_SIZE MAX_MSG_SIZE_X5T
 #else
 #error "need to define x5chain or x5t"
+#endif
+
+/*
+ * Handshake timing runs exercise oversized PQ/hybrid payloads and can exceed
+ * suite-specific MAX_MSG_SIZE values (especially with vector overrides).
+ * Give the in-memory transport a larger envelope so tx/rx does not fail with
+ * buffer_to_small while collecting timing data.
+ */
+#if defined(HANDSHAKE_TIMING_BENCH)
+#undef MAX_MSG_SIZE
+#define MAX_MSG_SIZE 8192
+#endif
+
+/* Optional method override to align benchmark variants (e.g., force type 3) */
+#if defined(FORCE_METHOD_TYPE_3)
+#define HANDSHAKE_METHOD_OVERRIDE INITIATOR_SDHK_RESPONDER_SDHK
+#elif defined(FORCE_METHOD_TYPE_0)
+#define HANDSHAKE_METHOD_OVERRIDE INITIATOR_SK_RESPONDER_SK
 #endif
 
 
@@ -292,6 +323,74 @@ uint8_t R_err_msg_buf[0];
 struct byte_array R_err_msg = { .ptr = R_err_msg_buf,
 				.len = sizeof(R_err_msg_buf) };
 
+#endif
+#if defined(HANDSHAKE_TIMING_BENCH) || defined(OPS_BENCH)
+static uint64_t now_ns(void)
+{
+	struct timespec ts;
+
+	if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0) {
+		return (uint64_t)ts.tv_sec * 1000000000ULL + (uint64_t)ts.tv_nsec;
+	}
+
+	/* Fallback when POSIX clock source is unavailable. */
+	return k_cyc_to_ns_floor64(k_cycle_get_32());
+}
+
+static double ns_to_ms(uint64_t ns)
+{
+	return (double)ns / 1000000.0;
+}
+#endif
+
+#if defined(HANDSHAKE_TIMING_BENCH)
+struct handshake_timing {
+	uint64_t precomp_ns;
+	uint64_t txrx_ns;
+	uint64_t run_start_ns;
+	uint64_t run_end_ns;
+	bool valid;
+};
+
+static struct handshake_timing timing_initiator = {0};
+static struct handshake_timing timing_responder = {0};
+
+static inline uint64_t elapsed_ns(uint64_t start, uint64_t end)
+{
+	return (end > start) ? (end - start) : 0;
+}
+
+static void print_handshake_timing_json(void)
+{
+	uint64_t i_main_ns = elapsed_ns(timing_initiator.run_start_ns,
+					timing_initiator.run_end_ns);
+	uint64_t r_main_ns = elapsed_ns(timing_responder.run_start_ns,
+					timing_responder.run_end_ns);
+
+	double i_precomp_ms = ns_to_ms(timing_initiator.precomp_ns);
+	double r_precomp_ms = ns_to_ms(timing_responder.precomp_ns);
+	double i_txrx_ms = ns_to_ms(timing_initiator.txrx_ns);
+	double r_txrx_ms = ns_to_ms(timing_responder.txrx_ns);
+
+	uint64_t i_proc_ns = (i_main_ns > timing_initiator.txrx_ns)
+				 ? (i_main_ns - timing_initiator.txrx_ns)
+				 : 0;
+	uint64_t r_proc_ns = (r_main_ns > timing_responder.txrx_ns)
+				 ? (r_main_ns - timing_responder.txrx_ns)
+				 : 0;
+
+	double i_proc_ms = ns_to_ms(i_proc_ns);
+	double r_proc_ms = ns_to_ms(r_proc_ns);
+	double i_total_ms = ns_to_ms(i_main_ns + timing_initiator.precomp_ns);
+	double r_total_ms = ns_to_ms(r_main_ns + timing_responder.precomp_ns);
+
+	printf("{\"initiator\":{\"valid\":%s,\"processing_ms\":%.6f,\"txrx_ms\":%.6f,\"precomp_ms\":%.6f,\"total_ms\":%.6f},"
+	       "\"responder\":{\"valid\":%s,\"processing_ms\":%.6f,\"txrx_ms\":%.6f,\"precomp_ms\":%.6f,\"total_ms\":%.6f}}\n",
+	       timing_initiator.valid ? "true" : "false",
+	       i_proc_ms, i_txrx_ms, i_precomp_ms, i_total_ms,
+	       timing_responder.valid ? "true" : "false",
+	       r_proc_ms, r_txrx_ms, r_precomp_ms, r_total_ms);
+}
 #endif
 #ifdef INITIATOR
 K_THREAD_STACK_DEFINE(thread_initiator_stack_area, STACKSIZE_I);
@@ -420,7 +519,14 @@ enum err rx_initiator(void *sock, struct byte_array *data)
 {
 	PRINTF("Rx_initiator\n");
 	PRINTF("msg_exchange_buf_len: %d\n", msg_exchange_buf_len);
-	return semaphore_take(&tx_responder_completed, data->ptr, &data->len);
+	#if defined(HANDSHAKE_TIMING_BENCH)
+	uint64_t t0 = now_ns();
+	#endif
+	enum err res = semaphore_take(&tx_responder_completed, data->ptr, &data->len);
+	#if defined(HANDSHAKE_TIMING_BENCH)
+	timing_initiator.txrx_ns += elapsed_ns(t0, now_ns());
+	#endif
+	return res;
 }
 #endif
 #ifdef RESPONDER
@@ -428,7 +534,14 @@ enum err rx_responder(void *sock, struct byte_array *data)
 {
 	PRINTF("Rx_responder\n");
 	PRINTF("msg_exchange_buf_len: %d\n", msg_exchange_buf_len);
-	return semaphore_take(&tx_initiator_completed, data->ptr, &data->len);
+	#if defined(HANDSHAKE_TIMING_BENCH)
+	uint64_t t0 = now_ns();
+	#endif
+	enum err res = semaphore_take(&tx_initiator_completed, data->ptr, &data->len);
+	#if defined(HANDSHAKE_TIMING_BENCH)
+	timing_responder.txrx_ns += elapsed_ns(t0, now_ns());
+	#endif
+	return res;
 }
 #endif
 enum err ead_process(void *params, struct byte_array *ead13)
@@ -454,6 +567,13 @@ void thread_initiator(void *vec_num, void *dummy2, void *dummy3)
 	int vec_num_i = *((int *)vec_num) - 1;
 	PRINTF("Initiator thread started with test vector %d!\n",vec_num_i +1);
 	enum err r;
+	#if defined(HANDSHAKE_TIMING_BENCH)
+	timing_initiator.precomp_ns = 0;
+	timing_initiator.txrx_ns = 0;
+	timing_initiator.run_start_ns = 0;
+	timing_initiator.run_end_ns = 0;
+	timing_initiator.valid = false;
+	#endif
 
 	struct other_party_cred cred_r;
 	struct edhoc_initiator_context c_i;
@@ -462,6 +582,9 @@ void thread_initiator(void *vec_num, void *dummy2, void *dummy3)
 	c_i.c_i.len = test_vectors[vec_num_i].c_i_len;
 	c_i.c_i.ptr = (uint8_t *)test_vectors[vec_num_i].c_i;
 	c_i.method = (enum method_type) * test_vectors[vec_num_i].method;
+#ifdef HANDSHAKE_METHOD_OVERRIDE
+	c_i.method = HANDSHAKE_METHOD_OVERRIDE;
+#endif
 	c_i.suites_i.len = test_vectors[vec_num_i].SUITES_I_len;
 	c_i.suites_i.ptr = (uint8_t *)test_vectors[vec_num_i].SUITES_I;
 	c_i.ead_1.len = test_vectors[vec_num_i].ead_1_len;
@@ -547,7 +670,72 @@ void thread_initiator(void *vec_num, void *dummy2, void *dummy3)
 	rc = counter_get_value(timer0, &ctr_start);
 	PRINTF("START MEASURE INITIATOR %llu  \n",(uint64_t)ctr_start);
 	#endif
-  	#if defined(GEN_EPH_KEYS) && defined(USE_SUIT_2)
+
+#if defined(HANDSHAKE_TIMING_BENCH)
+	uint64_t precomp_start_ns = now_ns();
+	uint32_t seed = 0xDEADBEEF;
+	switch (suit_in.edhoc_ecdh) {
+	case P256:
+	case X25519: {
+		static uint8_t dh_sk[64];
+		static uint8_t dh_pk[64];
+		byte_array x_dh = { .ptr = dh_sk, .len = get_ecdh_pk_len(suit_in.edhoc_ecdh) };
+		byte_array g_x_dh = { .ptr = dh_pk, .len = get_ecdh_pk_len(suit_in.edhoc_ecdh) };
+		ephemeral_dh_key_gen(suit_in.edhoc_ecdh, seed, &x_dh, &g_x_dh);
+		c_i.x = x_dh;
+		c_i.g_x = g_x_dh;
+		break;
+	}
+	case KYBER_LEVEL1:
+	case KYBER_LEVEL3:
+	case KYBER_LEVEL5:
+	case HQC_LEVEL1:
+	case BIKE_LEVEL1: {
+		static uint8_t kem_sk[5200];
+		static uint8_t kem_pk[5200];
+		byte_array x_kem = { .ptr = kem_sk, .len = get_kem_sk_len(suit_in.edhoc_ecdh) };
+		byte_array g_x_kem = { .ptr = kem_pk, .len = get_kem_pk_len(suit_in.edhoc_ecdh) };
+		ephemeral_kem_key_gen(suit_in.edhoc_ecdh, &x_kem, &g_x_kem);
+		c_i.x = x_kem;
+		c_i.g_x = g_x_kem;
+		break;
+	}
+	case H_P256_KYBER_LEVEL1:
+	case H_P256_KYBER_LEVEL3:
+	case H_P256_HQC_LEVEL1:
+	case H_P256_BIKE_LEVEL1:
+	case H_X25519_KYBER_LEVEL3: {
+		enum ecdh_alg hybrid_dh_alg = (suit_in.edhoc_ecdh == H_X25519_KYBER_LEVEL3) ? X25519 : P256;
+		static uint8_t dh_sk[64];
+		static uint8_t dh_pk[64];
+		byte_array x_dh = { .ptr = dh_sk, .len = get_ecdh_pk_len(hybrid_dh_alg) };
+		byte_array g_x_dh = { .ptr = dh_pk, .len = get_ecdh_pk_len(hybrid_dh_alg) };
+		ephemeral_dh_key_gen(hybrid_dh_alg, seed, &x_dh, &g_x_dh);
+		static uint8_t kem_sk[5200];
+		static uint8_t kem_pk[5200];
+		byte_array x_kem = { .ptr = kem_sk, .len = get_kem_sk_len(suit_in.edhoc_ecdh) };
+		byte_array g_x_kem = { .ptr = kem_pk, .len = get_kem_pk_len(suit_in.edhoc_ecdh) };
+		ephemeral_kem_key_gen(suit_in.edhoc_ecdh, &x_kem, &g_x_kem);
+		static uint8_t hybrid_pub[10400];
+		static uint8_t hybrid_secret[10400];
+		size_t pub_len = g_x_dh.len + g_x_kem.len;
+		memcpy(hybrid_pub, g_x_dh.ptr, g_x_dh.len);
+		memcpy(hybrid_pub + g_x_dh.len, g_x_kem.ptr, g_x_kem.len);
+		size_t secret_len = x_dh.len + x_kem.len;
+		memcpy(hybrid_secret, x_dh.ptr, x_dh.len);
+		memcpy(hybrid_secret + x_dh.len, x_kem.ptr, x_kem.len);
+		c_i.g_x.ptr = hybrid_pub;
+		c_i.g_x.len = pub_len;
+		c_i.x.ptr = hybrid_secret;
+		c_i.x.len = secret_len;
+		break;
+	}
+	default:
+		break;
+	}
+	timing_initiator.precomp_ns += elapsed_ns(precomp_start_ns, now_ns());
+#else
+	#if defined(GEN_EPH_KEYS) && defined(USE_SUIT_2)
 	/*create a random seed*/
 	PRINT_MSG("START EDHOC DH INITIATOR\n");
 	//uint32_t seed = k_cycle_get_32();
@@ -658,13 +846,22 @@ void thread_initiator(void *vec_num, void *dummy2, void *dummy3)
 
 		PRINTF("SUIT 2 with test_vector ephemerals\n")
 	#endif
+#endif /* HANDSHAKE_TIMING_BENCH */
 	rx_count = 0;
+	#if defined(HANDSHAKE_TIMING_BENCH)
+	timing_initiator.run_start_ns = now_ns();
+	timing_initiator.run_end_ns = timing_initiator.run_start_ns;
+	#endif
 
 	r = edhoc_initiator_run(&c_i, &cred_r_array, &I_err_msg, &I_PRK_out,
 				tx_initiator, rx_initiator, ead_process);
 	if (r != ok) {
 		goto end;
 	}
+	#if defined(HANDSHAKE_TIMING_BENCH)
+	timing_initiator.run_end_ns = now_ns();
+	timing_initiator.valid = (r == ok);
+	#endif
 
 	PRINT_ARRAY("I_PRK_out", I_PRK_out.ptr, I_PRK_out.len);
 
@@ -797,7 +994,66 @@ void thread_responder(void *vec_num, void *dummy2, void *dummy3)
     struct suite suit_in;
 	get_suite((enum suite_label)c_r.suites_r.ptr[c_r.suites_r.len - 1],
 				&suit_in);
-	#if !defined(USE_SUIT_2) && !defined(PQ_T_HYBRID)
+#if defined(HANDSHAKE_TIMING_BENCH)
+	timing_responder.precomp_ns = 0;
+	timing_responder.txrx_ns = 0;
+	timing_responder.run_start_ns = 0;
+	timing_responder.run_end_ns = 0;
+	timing_responder.valid = false;
+	uint64_t precomp_start_ns = now_ns();
+	uint32_t seed = 0xDEADBEEF;
+	switch (suit_in.edhoc_ecdh) {
+	case P256:
+	case X25519: {
+		static uint8_t dh_sk[64];
+		static uint8_t dh_pk[64];
+		byte_array y_dh = { .ptr = dh_sk, .len = get_ecdh_pk_len(suit_in.edhoc_ecdh) };
+		byte_array g_y_dh = { .ptr = dh_pk, .len = get_ecdh_pk_len(suit_in.edhoc_ecdh) };
+		ephemeral_dh_key_gen(suit_in.edhoc_ecdh, seed, &y_dh, &g_y_dh);
+		c_r.y = y_dh;
+		c_r.g_y = g_y_dh;
+		break;
+	}
+	case KYBER_LEVEL1:
+	case KYBER_LEVEL3:
+	case KYBER_LEVEL5:
+	case HQC_LEVEL1:
+	case BIKE_LEVEL1: {
+		/* For timing bench, g_y carries the KEM ciphertext, not a public key. */
+		static uint8_t kem_ct[5200];
+		byte_array g_y_kem = { .ptr = kem_ct, .len = get_kem_cc_len(suit_in.edhoc_ecdh) };
+		c_r.g_y = g_y_kem;
+		break;
+	}
+	case H_P256_KYBER_LEVEL1:
+	case H_P256_KYBER_LEVEL3:
+	case H_P256_HQC_LEVEL1:
+	case H_P256_BIKE_LEVEL1:
+	case H_X25519_KYBER_LEVEL3: {
+		enum ecdh_alg hybrid_dh_alg = (suit_in.edhoc_ecdh == H_X25519_KYBER_LEVEL3) ? X25519 : P256;
+		static uint8_t dh_sk[64];
+		static uint8_t dh_pk[64];
+		byte_array y_dh = { .ptr = dh_sk, .len = get_ecdh_pk_len(hybrid_dh_alg) };
+		byte_array g_y_dh = { .ptr = dh_pk, .len = get_ecdh_pk_len(hybrid_dh_alg) };
+		ephemeral_dh_key_gen(hybrid_dh_alg, seed, &y_dh, &g_y_dh);
+		/* KEM ciphertext will be written directly during encapsulation. Reserve ciphertext-size space. */
+		static uint8_t kem_ct[5200];
+		byte_array g_y_kem = { .ptr = kem_ct, .len = get_kem_cc_len(suit_in.edhoc_ecdh) };
+		static uint8_t hybrid_pub[10400];
+		size_t pub_len = g_y_dh.len + g_y_kem.len;
+		memcpy(hybrid_pub, g_y_dh.ptr, g_y_dh.len);
+		memcpy(hybrid_pub + g_y_dh.len, g_y_kem.ptr, g_y_kem.len);
+		c_r.g_y.ptr = hybrid_pub;
+		c_r.g_y.len = pub_len;
+		c_r.y = y_dh;
+		break;
+	}
+	default:
+		break;
+	}
+	timing_responder.precomp_ns += elapsed_ns(precomp_start_ns, now_ns());
+#else
+    #if !defined(USE_SUIT_2) && !defined(PQ_T_HYBRID)
 	PRINTF("PQC suit non hybrid\n");
 	uint8_t SK[get_sk_len(suit_in.edhoc_sign)];
 	uint8_t PK[get_pk_len(suit_in.edhoc_sign)];
@@ -903,17 +1159,26 @@ void thread_responder(void *vec_num, void *dummy2, void *dummy3)
 	PRINTF("Y size:%d",c_r.y.len);
 
 	#endif
+#endif /* HANDSHAKE_TIMING_BENCH */
 
 
 	
 	struct cred_array cred_i_array = { .len = 1, .ptr = &cred_i };
 	//rx_count = 0;
+	#if defined(HANDSHAKE_TIMING_BENCH)
+	timing_responder.run_start_ns = now_ns();
+	timing_responder.run_end_ns = timing_responder.run_start_ns;
+	#endif
     
 	r = edhoc_responder_run(&c_r, &cred_i_array, &R_err_msg, &R_PRK_out,
 				tx_responder, rx_responder, ead_process);
 	if (r != ok) {
 		goto end;
 	}
+	#if defined(HANDSHAKE_TIMING_BENCH)
+	timing_responder.run_end_ns = now_ns();
+	timing_responder.valid = (r == ok);
+	#endif
    // semaphore_take_finished(&tx_initiator_finished);
 	#ifdef POWER_MEASUREMENTS  
 	PRINTF("Start Responder\n"); 
@@ -1028,6 +1293,10 @@ int test_initiator_responder_interaction(int vec_num)
 	#endif
 	printf("threads completed\n");
 
+#if defined(HANDSHAKE_TIMING_BENCH)
+	print_handshake_timing_json();
+#endif
+
 	/* check if Initiator and Responder computed the same values */
 
 	/*zassert_mem_equal__(I_PRK_out.ptr, R_PRK_out.ptr, R_PRK_out.len,
@@ -1068,18 +1337,6 @@ static void bench_entry(void *p1, void *p2, void *p3)
 /* ---------- Ops benchmark (per-operation) ---------- */
 
 #ifdef OPS_BENCH
-static uint64_t now_ns(void)
-{
-	struct timeval tv;
-	gettimeofday(&tv, NULL);
-	return (uint64_t)tv.tv_sec * 1000000000ULL + (uint64_t)tv.tv_usec * 1000ULL;
-}
-
-static double ns_to_ms(uint64_t ns)
-{
-	return (double)ns / 1000000.0;
-}
-
 /* Map hybrid to underlying KEM for keygen/encap/decap */
 static enum ecdh_alg kem_from_suite(enum ecdh_alg e)
 {
@@ -1153,6 +1410,8 @@ static void run_ops_bench(void)
 	enum suite_label label = SUITE_2;
 #if defined(USE_SUIT_7)
 	label = SUITE_7;
+#elif defined(USE_SUIT_9)
+	label = SUITE_9;
 #elif defined(USE_SUIT_17)
 	label = SUITE_17;
 #elif defined(USE_SUIT_18)
@@ -1186,7 +1445,11 @@ static void run_ops_bench(void)
 
 	/* Keep benchmark semantics aligned with target paper variants */
 	bool do_signature_ops = false;
-	#if defined(USE_SUIT_7) || (defined(USE_SUIT_2) && !defined(USE_X5CHAIN))
+	#if defined(FORCE_METHOD_TYPE_0)
+	do_signature_ops = true;
+	#elif defined(FORCE_METHOD_TYPE_3)
+	do_signature_ops = false;
+	#elif defined(USE_SUIT_7) || (defined(USE_SUIT_2) && !defined(USE_X5CHAIN))
 	do_signature_ops = true;
 #endif
 
@@ -1315,48 +1578,51 @@ static void run_ops_bench(void)
 
 		uint64_t acc_ns = 0;
 		enum err kem_res = ok;
+		uint64_t t_batch_begin = now_ns();
 		for (int i = 0; i < OPS_ITERS; i++) {
-			uint64_t t0 = now_ns();
 			kem_res = ephemeral_kem_key_gen(kem_alg, &sk_arr, &pk_arr);
-			if (kem_res == ok) {
-				acc_ns += now_ns() - t0;
-			} else {
+			if (kem_res != ok) {
 				keygen_ms = -1.0;
 				acc_ns = 0;
 				break;
 			}
+		}
+		if (kem_res == ok) {
+			acc_ns = now_ns() - t_batch_begin;
 		}
 		if (acc_ns > 0) {
 			keygen_ms = ns_to_ms((acc_ns + OPS_ITERS - 1) / OPS_ITERS);
 		}
 
 		acc_ns = 0;
+		t_batch_begin = now_ns();
 		for (int i = 0; i < OPS_ITERS; i++) {
-			uint64_t t0 = now_ns();
 			kem_res = kem_encapsulate(kem_alg, &pk_arr, &ct_arr, &ss_arr);
-			if (kem_res == ok) {
-				acc_ns += now_ns() - t0;
-			} else {
+			if (kem_res != ok) {
 				encap_ms = -1.0;
 				acc_ns = 0;
 				break;
 			}
+		}
+		if (kem_res == ok) {
+			acc_ns = now_ns() - t_batch_begin;
 		}
 		if (acc_ns > 0) {
 			encap_ms = ns_to_ms((acc_ns + OPS_ITERS - 1) / OPS_ITERS);
 		}
 
 		acc_ns = 0;
+		t_batch_begin = now_ns();
 		for (int i = 0; i < OPS_ITERS; i++) {
-			uint64_t t0 = now_ns();
 			kem_res = kem_decapsulate(kem_alg, &ct_arr, &sk_arr, &ss_arr);
-			if (kem_res == ok) {
-				acc_ns += now_ns() - t0;
-			} else {
+			if (kem_res != ok) {
 				decap_ms = -1.0;
 				acc_ns = 0;
 				break;
 			}
+		}
+		if (kem_res == ok) {
+			acc_ns = now_ns() - t_batch_begin;
 		}
 		if (acc_ns > 0) {
 			decap_ms = ns_to_ms((acc_ns + OPS_ITERS - 1) / OPS_ITERS);
@@ -1372,15 +1638,17 @@ static void run_ops_bench(void)
 				keygen_ms = -1.0;
 			} else {
 				acc_ns = 0;
+				uint64_t t_batch_begin = now_ns();
 				for (int i = 0; i < OPS_ITERS; i++) {
-					uint64_t t0 = now_ns();
 					if (crypto_box_keypair(pk_tmp, sk_tmp) == 0) {
-						acc_ns += now_ns() - t0;
 					} else {
 						keygen_ms = -1.0;
 						acc_ns = 0;
 						break;
 					}
+				}
+				if (acc_ns == 0 && keygen_ms != -1.0) {
+					acc_ns = now_ns() - t_batch_begin;
 				}
 				if (acc_ns > 0) {
 					keygen_ms = ns_to_ms((acc_ns + OPS_ITERS - 1) / OPS_ITERS);
@@ -1393,19 +1661,20 @@ static void run_ops_bench(void)
 		uint8_t pk_dh_buf[128];
 
 		acc_ns = 0;
+		uint64_t t_batch_begin = now_ns();
 		for (int i = 0; i < OPS_ITERS; i++) {
 			struct byte_array sk_dh = {.ptr = sk_dh_buf, .len = sizeof(sk_dh_buf)};
 			struct byte_array pk_dh = {.ptr = pk_dh_buf, .len = sizeof(pk_dh_buf)};
-			uint64_t t0 = now_ns();
 			enum err kg_res = ephemeral_dh_key_gen(bench_ecdh_alg, (uint32_t)i + 1U,
 							      &sk_dh, &pk_dh);
-			if (kg_res == ok) {
-				acc_ns += now_ns() - t0;
-			} else {
+			if (kg_res != ok) {
 				keygen_ms = -1.0;
 				acc_ns = 0;
 				break;
 			}
+		}
+		if (acc_ns == 0 && keygen_ms != -1.0) {
+			acc_ns = now_ns() - t_batch_begin;
 		}
 		if (acc_ns > 0) {
 			keygen_ms = ns_to_ms((acc_ns + OPS_ITERS - 1) / OPS_ITERS);
@@ -1556,16 +1825,16 @@ static void run_ops_bench(void)
 				ecdh_res = unexpected_result_from_ext_lib;
 			} else {
 				acc_ns = 0;
+				uint64_t t_batch_begin = now_ns();
 				for (int i = 0; i < OPS_ITERS; i++) {
-					uint64_t t0 = now_ns();
 					if (crypto_scalarmult_curve25519(ss_buf, sk_local, pk_peer) == 0) {
-						acc_ns += now_ns() - t0;
 					} else {
 						ecdh_res = unexpected_result_from_ext_lib;
 						break;
 					}
 				}
 				if (ecdh_res == ok) {
+					acc_ns = now_ns() - t_batch_begin;
 					ecdh_ms = ns_to_ms((acc_ns + OPS_ITERS - 1) / OPS_ITERS);
 				}
 			}
@@ -1591,16 +1860,15 @@ static void run_ops_bench(void)
 			ecdh_res = ephemeral_dh_key_gen(dh_alg, 0xB0Bu, &sk_peer, &pk_peer);
 		}
 
+		uint64_t t_batch_begin = now_ns();
 		for (int i = 0; i < OPS_ITERS && ecdh_res == ok; i++) {
-			uint64_t t0 = now_ns();
 			ecdh_res = shared_secret_derive(dh_alg, &sk_local, &pk_peer, ss_buf);
-			if (ecdh_res == ok) {
-				acc_ns += now_ns() - t0;
-			} else {
+			if (ecdh_res != ok) {
 				break;
 			}
 		}
 		if (ecdh_res == ok) {
+			acc_ns = now_ns() - t_batch_begin;
 			ecdh_ms = ns_to_ms((acc_ns + OPS_ITERS - 1) / OPS_ITERS);
 		}
 		}
@@ -1609,22 +1877,28 @@ static void run_ops_bench(void)
 	/* --- HKDF (extract + expand) --- */
 	acc_ns = 0;
 	bool hkdf_ok = true;
+	uint64_t t_batch_begin = now_ns();
 	for (int i = 0; i < OPS_ITERS; i++) {
-		uint64_t t0 = now_ns();
 		if (hkdf_extract(SHA_256, &salt, &ikm, prk.ptr) == ok &&
 			hkdf_expand(SHA_256, &prk, &info, &hkdf_out) == ok) {
-			acc_ns += now_ns() - t0;
 		} else {
 			hkdf_ok = false;
 			break;
 		}
 	}
 	if (hkdf_ok) {
+		acc_ns = now_ns() - t_batch_begin;
 		hkdf_ms = ns_to_ms((acc_ns + OPS_ITERS - 1) / OPS_ITERS);
 	}
 
 	print_json_row(
 #if defined(USE_SUIT_7)
+		"Type 0 PQ: signature–signature",
+#elif defined(USE_SUIT_9) && defined(OPS_TYPE3_PQ_LABEL)
+		"Type 3 PQ: mac–mac",
+#elif defined(USE_SUIT_9) && defined(FORCE_METHOD_TYPE_3)
+		"Type 3 PQ: mac–mac",
+#elif defined(USE_SUIT_9)
 		"Type 0 PQ: signature–signature",
 #elif defined(USE_SUIT_17)
 		"Type 3 PQ: mac–mac",
@@ -1632,6 +1906,14 @@ static void run_ops_bench(void)
 		"Type 3 Hybrid x25519+Kyber (libsodium): mac–mac",
 #elif defined(USE_SUIT_18)
 		"Type 3 Hybrid: mac–mac (PQ+DH hybrid)",
+#elif defined(USE_SUIT_2) && defined(FORCE_METHOD_TYPE_3) && defined(CLASSIC_FAST_LIBSODIUM)
+		"Type 3 Classic x25519+EdDSA (libsodium): mac–mac",
+#elif defined(USE_SUIT_2) && defined(FORCE_METHOD_TYPE_3)
+		"Type 3 Classic P256: mac–mac",
+#elif defined(USE_SUIT_2) && defined(FORCE_METHOD_TYPE_0) && defined(CLASSIC_FAST_LIBSODIUM)
+		"Type 0 Classic x25519+EdDSA (libsodium): signature–signature",
+#elif defined(USE_SUIT_2) && defined(FORCE_METHOD_TYPE_0)
+		"Type 0 Classic P256: signature–signature",
 #elif defined(USE_SUIT_2) && defined(USE_X5CHAIN) && defined(CLASSIC_FAST_LIBSODIUM)
 		"Type 3 Classic x25519+EdDSA (libsodium): mac–mac",
 #elif defined(USE_SUIT_2) && defined(USE_X5CHAIN)

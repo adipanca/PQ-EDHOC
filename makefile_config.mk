@@ -91,14 +91,14 @@ FEATURES += -DDH
 
 ################################################################################
 # Select the PQ KEM algorithm to be used, 
-FEATURES += -DKYBER_LEVEL_3
+FEATURES += -DKYBER_LEVEL_1
 #FEATURES += -DHQC_LEVEL_1 
 #FEATURES += -DBIKE_LEVEL_1
 
 ################################################################################
 # Select the PQ Signature algorithm to be used
 
-#FEATURES += -DFALCON_LEVEL_1
+FEATURES += -DFALCON_LEVEL_1
 
 #FEATURES += -DDILITHIUM_LEVEL_2
 #FEATURES += -DHAWK_LEVEL_1

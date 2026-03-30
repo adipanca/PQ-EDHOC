@@ -126,9 +126,17 @@ enum err th34_calculate(enum hash_alg alg, struct byte_array *th23,
 enum err th2_calculate(enum hash_alg alg, struct byte_array *msg1_hash,
 		       struct byte_array *g_y, struct byte_array *th2)
 {
-	BYTE_ARRAY_NEW(th2_input, TH2_INPUT_SIZE,
-		       AS_BSTR_SIZE(g_y->len) +
-			       AS_BSTR_SIZE(get_hash_len(alg)));
+	uint32_t th2_input_needed = AS_BSTR_SIZE(g_y->len) +
+		AS_BSTR_SIZE(get_hash_len(alg));
+	printf("th2_input_needed=%u TH2_INPUT_SIZE=%u g_y_len=%u hash_len=%u\n",
+	       th2_input_needed, (uint32_t)TH2_INPUT_SIZE, g_y->len,
+	       get_hash_len(alg));
+	fflush(stdout);
+	TRY(check_buffer_size(TH2_INPUT_SIZE, th2_input_needed));
+
+	uint8_t th2_input_buf[TH2_INPUT_SIZE];
+	struct byte_array th2_input = { .ptr = th2_input_buf,
+				     .len = th2_input_needed };
 	PRINT_ARRAY("hash_msg1_raw", msg1_hash->ptr, msg1_hash->len);
 	TRY(th2_input_encode(msg1_hash, g_y, &th2_input));
 	TRY(hash(alg, &th2_input, th2));

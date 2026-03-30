@@ -17,8 +17,17 @@
 
 void runtime_context_init(struct runtime_context *c)
 {
-	c->msg.len = sizeof(c->msg_buf);
+	/*
+	 * Some benchmark builds reported msg.len=0 before encoding msg1
+	 * (see type0 timing runs). Guard against that by force-setting the
+	 * capacity to the compile-time MSG_MAX_SIZE even if the sizeof
+	 * expression were to misbehave.
+	 */
 	c->msg.ptr = c->msg_buf;
+	c->msg.len = sizeof(c->msg_buf);
+	if (c->msg.len == 0 || c->msg.len < MSG_MAX_SIZE) {
+		c->msg.len = MSG_MAX_SIZE;
+	}
 
 #if EAD_SIZE != 0
 	c->ead.len = sizeof(c->ead_buf);

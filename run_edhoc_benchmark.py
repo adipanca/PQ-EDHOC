@@ -8,11 +8,11 @@ Optional: run the produced binary and measure wall-clock time as CPU proxy (nati
 Memory is derived from `size zephyr.elf` (data+bss, in KiB) after each build.
 
 Defaults match the five variants requested:
-  1. Type 0 PQ (signature–signature)          -> SUIT_7   + X5T
-  2. Type 3 PQ (mac–mac)                      -> SUIT_17  + X5T
-  3. Type 3 Hybrid (mac–mac)                  -> SUIT_18  + X5T
-  4. Type 0 Classic x25519 (signature–sig)    -> SUIT_2   + X5T
-  5. Type 3 Classic x25519 (mac–mac)          -> SUIT_2   + X5CHAIN
+    1. Type 0 PQ (signature–signature)          -> SUIT_9   + X5T + vector 10
+    2. Type 3 PQ (mac–mac; vector fallback)     -> SUIT_9   + X5T + vector 9
+    3. Type 3 Hybrid (mac–mac; vector fallback) -> SUIT_18  + X5T + vector 18
+    4. Type 0 Classic x25519 (signature–sig)    -> SUIT_2   + X5T + vector 2
+    5. Type 3 Classic x25519 (mac–mac)          -> SUIT_2   + X5T + vector 5
 
 Usage examples:
     python3 run_edhoc_benchmark.py                          # build all, print rows
@@ -35,6 +35,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Sequence, Tuple
 
+from benchmark_profiles import get_edhoc_profiles, profile_to_cmake_flags
+
 
 ROOT = Path(__file__).resolve().parent
 TEST_APP = ROOT / "test_pq_mem"
@@ -56,30 +58,11 @@ class Variant:
 
 VARIANTS: List[Variant] = [
     Variant(
-        key="pq-sign",
-        label="Edhoc type 0 PQ",
-        cmake_flags=["-DUSE_SUIT_7=ON", "-DUSE_X5T=1", "-DUSE_TEST_EDHOC=1"],
-    ),
-    Variant(
-        key="pq-mac",
-        label="Edhoc type 3 PQ",
-        cmake_flags=["-DUSE_SUIT_17=ON", "-DUSE_X5T=1", "-DUSE_TEST_EDHOC=1"],
-    ),
-    Variant(
-        key="hybrid-mac",
-        label="Edhoc type 3 Hybrid",
-        cmake_flags=["-DUSE_SUIT_18=ON", "-DUSE_X5T=1", "-DUSE_TEST_EDHOC=1"],
-    ),
-    Variant(
-        key="classic-sign",
-        label="Edhoc type 0 Classic x25519",
-        cmake_flags=["-DUSE_SUIT_2=ON", "-DUSE_X5T=1", "-DUSE_TEST_EDHOC=1"],
-    ),
-    Variant(
-        key="classic-mac",
-        label="Edhoc type 3 Classic x25519",
-        cmake_flags=["-DUSE_SUIT_2=ON", "-DUSE_X5CHAIN=1", "-DUSE_TEST_EDHOC=1"],
-    ),
+        key=p.key,
+        label=p.label,
+        cmake_flags=profile_to_cmake_flags(p, include_use_test_edhoc=True),
+    )
+    for p in get_edhoc_profiles()
 ]
 
 
@@ -142,7 +125,15 @@ def detect_build_config(force_backend: str = "auto") -> BuildConfig:
     return BuildConfig(backend="cmake", west_cmd=None)
 
 
-def build_variant(variant: Variant, board: str, pristine: bool, show_output: bool, role: str, cfg: BuildConfig) -> None:
+def build_variant(
+    variant: Variant,
+    board: str,
+    pristine: bool,
+    show_output: bool,
+    role: str,
+    cfg: BuildConfig,
+    build_type: str,
+) -> None:
     # Define only the active role; avoid defining the other, since the code uses
     # `#ifdef INITIATOR` / `#ifdef RESPONDER` and even `-DRESPONDER=0` counts as
     # defined. This keeps the initiator-only and responder-only builds distinct.
@@ -154,7 +145,7 @@ def build_variant(variant: Variant, board: str, pristine: bool, show_output: boo
         cmd = [*cfg.west_cmd, "build", "-b", board]
         if pristine:
             cmd += ["-p", "always"]
-        cmd += ["--"] + variant.cmake_flags + role_flags
+        cmd += ["--"] + variant.cmake_flags + role_flags + [f"-DCMAKE_BUILD_TYPE={build_type}"]
         run_cmd(cmd, cwd=TEST_APP, capture=not show_output)
         return
 
@@ -175,6 +166,7 @@ def build_variant(variant: Variant, board: str, pristine: bool, show_output: boo
         "-B",
         str(build_dir),
         "-DBOARD=" + board,
+        f"-DCMAKE_BUILD_TYPE={build_type}",
         *variant.cmake_flags,
         *role_flags,
     ]
@@ -198,14 +190,14 @@ def kb(val_bytes: int) -> float:
 
 def format_row(label: str, cpu_i: float | None, cpu_r: float | None, mem_i: float, mem_r: float) -> str:
     # runs=1
-    cpu_i_val = 0.0 if cpu_i is None else max(cpu_i, 0.0001)
-    cpu_r_val = 0.0 if cpu_r is None else max(cpu_r, 0.0001)
+    cpu_i_val = float("nan") if cpu_i is None else max(cpu_i, 0.001)
+    cpu_r_val = float("nan") if cpu_r is None else max(cpu_r, 0.001)
     return f"{label},1,{cpu_i_val:.3f},{cpu_r_val:.3f},{mem_i:.1f},{mem_r:.1f}"
 
 
 def run_binary(exe_path: Path, timeout: int, print_output: bool) -> Tuple[float | None, bool]:
-    """Run zephyr.exe once, return (seconds, timed_out)."""
-    t0 = time.perf_counter()
+    """Run zephyr.exe once, return (milliseconds, timed_out)."""
+    t0_ns = time.clock_gettime_ns(time.CLOCK_MONOTONIC)
     stdout_opt = subprocess.PIPE if print_output else subprocess.DEVNULL
     proc = subprocess.Popen(
         [str(exe_path)],
@@ -225,14 +217,14 @@ def run_binary(exe_path: Path, timeout: int, print_output: bool) -> Tuple[float 
                 print(proc.stdout.read())
             except Exception:  # pragma: no cover - best effort
                 pass
-        return float(timeout), True
+        return float(timeout) * 1000.0, True
     except KeyboardInterrupt:
         proc.kill()
         proc.wait()
         print("  run interrupted (Ctrl+C); skipping CPU time for this variant")
         return None, False
 
-    duration = time.perf_counter() - t0
+    duration_ms = (time.clock_gettime_ns(time.CLOCK_MONOTONIC) - t0_ns) / 1_000_000.0
     if proc.returncode != 0:
         if print_output and proc.stdout:
             try:
@@ -246,7 +238,7 @@ def run_binary(exe_path: Path, timeout: int, print_output: bool) -> Tuple[float 
             print(proc.stdout.read())
         except Exception:
             pass
-    return duration, False
+    return duration_ms, False
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -254,7 +246,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--board", default="native_posix_64", help="Zephyr board (default: native_posix_64)")
     parser.add_argument("--variant", choices=[v.key for v in VARIANTS], nargs="*", help="Run only these variants")
     parser.add_argument("--no-pristine", action="store_true", help="Skip -p always to speed up rebuilds")
-    parser.add_argument("--run-cpu", action="store_true", help="Run zephyr.exe and time it (wall clock seconds)")
+    parser.add_argument("--run-cpu", dest="run_cpu", action="store_true", help="Run zephyr.exe and time it (monotonic wall clock, milliseconds)")
+    parser.add_argument("--no-run-cpu", dest="run_cpu", action="store_false", help="Skip runtime CPU timing and only report memory")
+    parser.set_defaults(run_cpu=True)
     parser.add_argument("--cpu-runs", type=int, default=3, help="How many times to run zephyr.exe when measuring CPU (median taken)")
     parser.add_argument("--timeout", type=int, default=180, help="Timeout seconds for run (default: 180)")
     parser.add_argument("--print-run-output", action="store_true", help="Print stdout from the run when measuring CPU")
@@ -264,6 +258,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         choices=["auto", "west", "cmake"],
         default="auto",
         help="Build backend: auto (default), west, or cmake",
+    )
+    parser.add_argument(
+        "--build-type",
+        choices=["Debug", "Release", "RelWithDebInfo", "MinSizeRel"],
+        default="Release",
+        help="CMake build type for reproducible CPU timing (default: Release)",
     )
     parser.add_argument("--write-csv", metavar="PATH", help="Write rows to CSV file (e.g., benchmarks_edhoc.csv)")
     parser.add_argument("--overwrite-csv", action="store_true", help="Rewrite CSV (header + rows) instead of appending")
@@ -305,12 +305,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         for role in ("initiator", "responder"):
             try:
                 print(f"[BUILD] {v.label} ({v.key}) role={role}", flush=True)
-                build_variant(v, board=args.board, pristine=pristine, show_output=args.show_build_output, role=role, cfg=cfg)
+                build_variant(
+                    v,
+                    board=args.board,
+                    pristine=pristine,
+                    show_output=args.show_build_output,
+                    role=role,
+                    cfg=cfg,
+                    build_type=args.build_type,
+                )
                 size_out = run_cmd(["size", str(ELF_PATH)], cwd=TEST_APP / "build" / "zephyr")
                 text_b, data_b, bss_b = parse_size_output(size_out)
                 ram_kb = kb(data_b + bss_b)
 
-                cpu_sec = None
+                cpu_ms = None
                 timed_out = False
                 if args.run_cpu:
                     exe_path = TEST_APP / "build" / "zephyr" / "zephyr.exe"
@@ -326,18 +334,18 @@ def main(argv: Sequence[str] | None = None) -> int:
                             break
                         if run_dur is not None:
                             durations.append(run_dur)
-                            print(f"  run {i+1}/{args.cpu_runs}: {run_dur:.3f} s")
+                            print(f"  run {i+1}/{args.cpu_runs}: {run_dur:.3f} ms")
                     if durations:
-                        cpu_sec = statistics.median(durations)
-                        print(f"  median run time: {cpu_sec:.3f} s")
+                        cpu_ms = statistics.median(durations)
+                        print(f"  median run time: {cpu_ms:.3f} ms")
                     elif timed_out:
-                        cpu_sec = float(args.timeout)
+                        cpu_ms = float(args.timeout) * 1000.0
 
                 if role == "initiator":
-                    cpu_i = cpu_sec
+                    cpu_i = cpu_ms
                     mem_i = ram_kb
                 else:
-                    cpu_r = cpu_sec
+                    cpu_r = cpu_ms
                     mem_r = ram_kb
 
                 timed_out_any = timed_out_any or timed_out
@@ -367,7 +375,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.write_csv:
         csv_path = Path(args.write_csv)
-        header = "label,runs,median_cpu_initiator,median_cpu_responder,median_mem_init_kb,median_mem_resp_kb\n"
+        header = "label,runs,median_cpu_initiator_ms,median_cpu_responder_ms,median_mem_init_kb,median_mem_resp_kb\n"
         write_mode = "w" if args.overwrite_csv or not csv_path.exists() else "a"
         need_header = write_mode == "w"
         with csv_path.open(write_mode, encoding="utf-8") as f:

@@ -49,8 +49,13 @@ enum err get_suite(enum suite_label label, struct suite *suite)
 		suite->edhoc_aead = AES_CCM_16_64_128;
 		suite->edhoc_hash = SHA_256;
 		suite->edhoc_mac_len_static_dh = MAC8;
+		#if defined(CLASSIC_FAST_LIBSODIUM)
+		suite->edhoc_ecdh = X25519;
+		suite->edhoc_sign = EdDSA;
+		#else
 		suite->edhoc_ecdh = P256;
 		suite->edhoc_sign = ES256;
+		#endif
 		suite->app_aead = AES_CCM_16_64_128;
 		suite->app_hash = SHA_256;
 		break;
@@ -195,7 +200,11 @@ enum err get_suite(enum suite_label label, struct suite *suite)
 		suite->edhoc_aead = AES_CCM_16_64_128;
 		suite->edhoc_hash = SHA_256;
 		suite->edhoc_mac_len_static_dh = MAC8;
+		#if defined(HYBRID_FAST_LIBSODIUM)
+		suite->edhoc_ecdh = H_X25519_KYBER_LEVEL3;
+		#else
 		suite->edhoc_ecdh = H_P256_KYBER_LEVEL3;
+		#endif
 		suite->edhoc_sign = ES256;
 		suite->app_aead = AES_CCM_16_64_128;
 		suite->app_hash = SHA_256;

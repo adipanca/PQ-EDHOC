@@ -23352,9 +23352,9 @@ static const uint8_t test_vector_17_oscore_salt_key_update_raw[] = {
 static const uint8_t test_vector_18_method[] = {
 	0x00};
 static const uint8_t test_vector_18_SUITES_I[] = {
-	SUITE_20};
+	SUITE_18};
 static const uint8_t test_vector_18_SUITES_R[] = {
-	SUITE_20};
+	SUITE_18};
 static const uint8_t test_vector_18_x_raw[] = {
 };
 static const uint8_t test_vector_18_g_x_raw[] = {

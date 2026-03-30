@@ -10,6 +10,7 @@
 */
 
 #include <stdint.h>
+#include <string.h>
 
 #include "edhoc/buffer_sizes.h"
 #include "edhoc/edhoc_cose.h"
@@ -27,6 +28,8 @@
 
 #include "cbor/edhoc_encode_enc_structure.h"
 #include "cbor/edhoc_encode_sig_structure.h"
+
+static struct signature_or_mac_stats sig_stats;
 
 /**
  * @brief 			Forms a serialized data structure from a set of 
@@ -131,9 +134,16 @@ static enum err signature_struct_gen(const struct byte_array *th,
 
 	TRY(encode_bstr(th, &th_enc));
 
-	BYTE_ARRAY_NEW(tmp,
-		       (CRED_MAX_SIZE + AS_BSTR_SIZE(HASH_SIZE) + EAD_SIZE),
-		       (th_enc.len + cred->len + ead->len));
+	uint32_t tmp_len = th_enc.len + cred->len + ead->len;
+	struct byte_array tmp;
+	uint8_t tmp_buf[tmp_len];
+
+	if (tmp_len == 0) {
+		tmp = NULL_ARRAY;
+	} else {
+		tmp.ptr = tmp_buf;
+		tmp.len = tmp_len;
+	}
 
 	memcpy(tmp.ptr, th_enc.ptr, th_enc.len);
 	memcpy(tmp.ptr + th_enc.len, cred->ptr, cred->len);
@@ -171,11 +181,36 @@ signature_or_mac(enum sgn_or_mac_op op, bool static_dh, struct suite *suite,
 				COSE_SIGN1_STR_LEN, id_cred->len,
 				(AS_BSTR_SIZE(th->len) + cred->len + ead->len),
 				signature_or_mac->len);
-			BYTE_ARRAY_NEW(sign_struct, SIG_STRUCT_SIZE,
-				       sig_struct_size);
+			PRINTF("sig_struct_size=%u SIG_STRUCT_SIZE=%u\n",
+			       sig_struct_size, SIG_STRUCT_SIZE);
+			/*
+			 * Some timing-benchmark credential payloads (suite 9 PQ) exceed the
+			 * conservative SIG_STRUCT_SIZE macro. Allocate a VLA large enough for
+			 * the computed need to avoid buffer_to_small at runtime.
+			 */
+			uint32_t sig_struct_buf_size =
+				(sig_struct_size > SIG_STRUCT_SIZE) ? sig_struct_size : SIG_STRUCT_SIZE;
+			PRINTF("sig_struct_buf_size=%u (th=%u id_cred=%u cred=%u ead=%u mac=%u)\n",
+			       sig_struct_buf_size, th->len, id_cred->len, cred->len, ead->len,
+			       signature_or_mac->len);
+			struct byte_array sign_struct;
+			uint8_t sign_struct_buf[sig_struct_buf_size];
+			if (sig_struct_size == 0) {
+				sign_struct = NULL_ARRAY;
+			} else {
+				sign_struct.ptr = sign_struct_buf;
+				/* Use the full allocated buffer as capacity; the computed size is a
+				 * lower bound and can underestimate large CBOR overheads for big
+				 * credentials in timing builds (suite 9 PQ). Using the buffer size
+				 * avoids buffer_to_small during cbor_encode_sig_structure.
+				 */
+				sign_struct.len = sig_struct_buf_size;
+			}
 			TRY(signature_struct_gen(th, id_cred, cred, ead,
 						 signature_or_mac,
 						 &sign_struct));
+			PRINTF("signature_struct_gen ok, sign_struct.len=%u\n",
+			       sign_struct.len);
            
 			signature_or_mac->len =
 			get_signature_len(suite->edhoc_sign);
@@ -184,9 +219,12 @@ signature_or_mac(enum sgn_or_mac_op op, bool static_dh, struct suite *suite,
 			memset(signature_or_mac->ptr,0,signature_or_mac->len);
 			TRY(sign_edhoc(suite->edhoc_sign, sk, pk, &sign_struct,
 				 signature_or_mac->ptr, &signature_or_mac->len));
+				PRINTF("sign_edhoc ok, signature len=%u\n",
+				       signature_or_mac->len);
 			PRINT_ARRAY("signature_or_mac (is signature)",
 				    signature_or_mac->ptr,
 				    signature_or_mac->len);
+			sig_stats.signatures_generated++;
 		}
 	} else { /*we verify here*/
 		BYTE_ARRAY_NEW(_mac, HASH_SIZE,
@@ -208,8 +246,16 @@ signature_or_mac(enum sgn_or_mac_op op, bool static_dh, struct suite *suite,
 				COSE_SIGN1_STR_LEN, id_cred->len,
 				(AS_BSTR_SIZE(th->len) + cred->len + ead->len),
 				_mac.len);
-			BYTE_ARRAY_NEW(sign_struct, SIG_STRUCT_SIZE,
-				       sig_struct_size);
+			uint32_t sig_struct_buf_size =
+				(sig_struct_size > SIG_STRUCT_SIZE) ? sig_struct_size : SIG_STRUCT_SIZE;
+			struct byte_array sign_struct;
+			uint8_t sign_struct_buf[sig_struct_buf_size];
+			if (sig_struct_size == 0) {
+				sign_struct = NULL_ARRAY;
+			} else {
+				sign_struct.ptr = sign_struct_buf;
+				sign_struct.len = sig_struct_buf_size;
+			}
 			TRY(signature_struct_gen(th, id_cred, cred, ead, &_mac,
 						 &sign_struct));
 
@@ -223,7 +269,21 @@ signature_or_mac(enum sgn_or_mac_op op, bool static_dh, struct suite *suite,
 				return signature_authentication_failed;
 			}
 			PRINT_MSG("Signature or MAC verification successful!\n");
+			sig_stats.signatures_verified++;
 		}
 	}
 	return ok;
+}
+
+void signature_or_mac_reset_stats(void)
+{
+	memset(&sig_stats, 0, sizeof(sig_stats));
+}
+
+void signature_or_mac_get_stats(struct signature_or_mac_stats *out)
+{
+	if (out == NULL) {
+		return;
+	}
+	memcpy(out, &sig_stats, sizeof(sig_stats));
 }

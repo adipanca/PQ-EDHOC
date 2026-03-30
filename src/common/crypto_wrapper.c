@@ -1077,8 +1077,7 @@ enum err WEAK sign_edhoc(enum sign_alg alg, const struct byte_array *sk,
 	}
 	//else if ((alg == FALCON_LEVEL1)||(alg == FALCON_LEVEL1)||(alg == FALCON_PADDED_LEVEL1)||(alg == FALCON_PADDED_LEVEL5)){
 	else if ((alg <= FALCON_LEVEL1) && (alg >= HAETAE_LEVEL2)) {
-#if (defined(PQM4) || defined(LIBOQS) || defined(MUPQ) || defined(PQCLEAN)) && \
-	!defined(PQ_T_HYBRID)
+#if (defined(PQM4) || defined(LIBOQS) || defined(MUPQ) || defined(PQCLEAN))
 		PRINT_MSG("PQ signature\n");
 		int ret = sign_signature(alg, sk, msg, out, out_len);
 		PRINT_MSG("PQ signature correct\n");
@@ -1182,8 +1181,7 @@ enum err WEAK verify_edhoc(enum sign_alg alg, const struct byte_array *pk,
 	}
 	//else if ((alg == FALCON_LEVEL1)||(alg == FALCON_LEVEL1)||(alg == FALCON_PADDED_LEVEL1)||(alg == FALCON_PADDED_LEVEL5)){
 	else if ((alg <= FALCON_LEVEL1) && (alg >= HAETAE_LEVEL2)) {
-#if (defined(PQM4) || defined(LIBOQS) || defined(MUPQ) || defined(PQCLEAN)) && \
-	!defined(PQ_T_HYBRID)
+#if (defined(PQM4) || defined(LIBOQS) || defined(MUPQ) || defined(PQCLEAN))
 		int ret = sign_verify(alg, pk, (const struct byte_array *)msg,
 				      (const struct byte_array *)sgn);
 		if (ret == 0) {

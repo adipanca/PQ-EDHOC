@@ -1,0 +1,67 @@
+zephyr/boards/posix/native_posix/CMakeFiles/boards__posix__native_posix.dir/timer_model.c.obj: \
+ /home/ubuntu/zephyrproject/zephyr/boards/posix/native_posix/timer_model.c \
+ /home/ubuntu/PQ-EDHOC/build_ops_runtime/type3-classic-initiator/zephyr/include/generated/autoconf.h \
+ /usr/include/stdc-predef.h \
+ /home/ubuntu/zephyrproject/zephyr/arch/posix/include/posix_cheats.h \
+ /usr/lib/gcc/aarch64-linux-gnu/13/include/stdint.h /usr/include/stdint.h \
+ /usr/include/aarch64-linux-gnu/bits/libc-header-start.h \
+ /usr/include/features.h /usr/include/features-time64.h \
+ /usr/include/aarch64-linux-gnu/bits/wordsize.h \
+ /usr/include/aarch64-linux-gnu/bits/timesize.h \
+ /usr/include/aarch64-linux-gnu/sys/cdefs.h \
+ /usr/include/aarch64-linux-gnu/bits/long-double.h \
+ /usr/include/aarch64-linux-gnu/gnu/stubs.h \
+ /usr/include/aarch64-linux-gnu/gnu/stubs-lp64.h \
+ /usr/include/aarch64-linux-gnu/bits/types.h \
+ /usr/include/aarch64-linux-gnu/bits/typesizes.h \
+ /usr/include/aarch64-linux-gnu/bits/time64.h \
+ /usr/include/aarch64-linux-gnu/bits/wchar.h \
+ /usr/include/aarch64-linux-gnu/bits/stdint-intn.h \
+ /usr/include/aarch64-linux-gnu/bits/stdint-uintn.h \
+ /usr/include/aarch64-linux-gnu/bits/stdint-least.h /usr/include/time.h \
+ /usr/lib/gcc/aarch64-linux-gnu/13/include/stddef.h \
+ /usr/include/aarch64-linux-gnu/bits/time.h \
+ /usr/include/aarch64-linux-gnu/bits/types/clock_t.h \
+ /usr/include/aarch64-linux-gnu/bits/types/time_t.h \
+ /usr/include/aarch64-linux-gnu/bits/types/struct_tm.h \
+ /usr/include/aarch64-linux-gnu/bits/types/struct_timespec.h \
+ /usr/include/aarch64-linux-gnu/bits/endian.h \
+ /usr/include/aarch64-linux-gnu/bits/endianness.h \
+ /usr/include/aarch64-linux-gnu/bits/types/clockid_t.h \
+ /usr/include/aarch64-linux-gnu/bits/types/timer_t.h \
+ /usr/include/aarch64-linux-gnu/bits/types/struct_itimerspec.h \
+ /usr/include/aarch64-linux-gnu/bits/types/locale_t.h \
+ /usr/include/aarch64-linux-gnu/bits/types/__locale_t.h \
+ /usr/lib/gcc/aarch64-linux-gnu/13/include/stdbool.h /usr/include/math.h \
+ /usr/include/aarch64-linux-gnu/bits/math-vector.h \
+ /usr/include/aarch64-linux-gnu/bits/libm-simd-decl-stubs.h \
+ /usr/include/aarch64-linux-gnu/bits/floatn.h \
+ /usr/include/aarch64-linux-gnu/bits/floatn-common.h \
+ /usr/include/aarch64-linux-gnu/bits/flt-eval-method.h \
+ /usr/include/aarch64-linux-gnu/bits/fp-logb.h \
+ /usr/include/aarch64-linux-gnu/bits/fp-fast.h \
+ /usr/include/aarch64-linux-gnu/bits/mathcalls-helper-functions.h \
+ /usr/include/aarch64-linux-gnu/bits/mathcalls.h \
+ /home/ubuntu/zephyrproject/zephyr/boards/posix/native_posix/hw_models_top.h \
+ /home/ubuntu/zephyrproject/zephyr/include/zephyr/types.h \
+ /usr/include/inttypes.h \
+ /home/ubuntu/zephyrproject/zephyr/boards/posix/native_posix/irq_ctrl.h \
+ /home/ubuntu/zephyrproject/zephyr/boards/posix/native_posix/board_soc.h \
+ /home/ubuntu/zephyrproject/zephyr/include/zephyr/arch/posix/posix_trace.h \
+ /usr/lib/gcc/aarch64-linux-gnu/13/include/stdarg.h \
+ /home/ubuntu/zephyrproject/zephyr/include/zephyr/sys/util.h \
+ /home/ubuntu/zephyrproject/zephyr/include/zephyr/sys/util_macro.h \
+ /home/ubuntu/zephyrproject/zephyr/include/zephyr/sys/util_internal.h \
+ /home/ubuntu/zephyrproject/zephyr/include/zephyr/sys/util_loops.h \
+ /home/ubuntu/zephyrproject/zephyr/include/zephyr/sys/util_listify.h \
+ /home/ubuntu/zephyrproject/zephyr/include/zephyr/sys/util_internal_is_eq.h \
+ /home/ubuntu/zephyrproject/zephyr/include/zephyr/sys/util_internal_util_inc.h \
+ /home/ubuntu/zephyrproject/zephyr/include/zephyr/sys/util_internal_util_dec.h \
+ /home/ubuntu/zephyrproject/zephyr/include/zephyr/sys/util_internal_util_x2.h \
+ /home/ubuntu/zephyrproject/zephyr/include/zephyr/toolchain.h \
+ /home/ubuntu/zephyrproject/zephyr/include/zephyr/toolchain/gcc.h \
+ /home/ubuntu/zephyrproject/zephyr/include/zephyr/toolchain/common.h \
+ /home/ubuntu/zephyrproject/zephyr/include/zephyr/sys/time_units.h \
+ /home/ubuntu/zephyrproject/zephyr/boards/posix/native_posix/cmdline.h \
+ /home/ubuntu/zephyrproject/zephyr/boards/posix/native_posix/cmdline_common.h \
+ /home/ubuntu/zephyrproject/zephyr/soc/posix/inf_clock/posix_native_task.h

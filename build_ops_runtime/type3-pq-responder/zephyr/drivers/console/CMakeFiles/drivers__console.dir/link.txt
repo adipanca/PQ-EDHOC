@@ -1,0 +1,2 @@
+/home/ubuntu/zephyr-sdk-fake/sysroots/aarch64-pokysdk-linux/usr/bin/ar qc libdrivers__console.a CMakeFiles/drivers__console.dir/posix_arch_console.c.obj
+/home/ubuntu/zephyr-sdk-fake/sysroots/aarch64-pokysdk-linux/usr/bin/ranlib libdrivers__console.a

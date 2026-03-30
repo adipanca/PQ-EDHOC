@@ -1,0 +1,2 @@
+/home/ubuntu/zephyr-sdk-fake/sysroots/aarch64-pokysdk-linux/usr/bin/ar qc libdrivers__timer.a CMakeFiles/drivers__timer.dir/sys_clock_init.c.obj CMakeFiles/drivers__timer.dir/native_posix_timer.c.obj
+/home/ubuntu/zephyr-sdk-fake/sysroots/aarch64-pokysdk-linux/usr/bin/ranlib libdrivers__timer.a

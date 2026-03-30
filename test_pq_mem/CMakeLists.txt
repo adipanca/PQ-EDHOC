@@ -23,6 +23,21 @@ option(USE_LIBSODIUM_CLASSIC "Enable libsodium backend for classic X25519/EdDSA 
 option(USE_CLASSIC_FAST_BENCH "Force classic benchmark fast profile (X25519 + EdDSA)" OFF)
 option(USE_LIBSODIUM_HYBRID "Enable libsodium backend for hybrid x25519 operations" OFF)
 option(USE_HYBRID_FAST_BENCH "Force hybrid benchmark fast profile (x25519+Kyber)" OFF)
+option(FORCE_METHOD_TYPE_3 "Force EDHOC method type 3 (MAC/MAC) for benchmark runs" OFF)
+option(FORCE_METHOD_TYPE_0 "Force EDHOC method type 0 (signature/signature) for benchmark runs" OFF)
+set(TEST_VECTOR_IDX_OVERRIDE "" CACHE STRING "Override test vector index (X5T/X5CHAIN) for benchmark runs")
+
+if(FORCE_METHOD_TYPE_3)
+  add_definitions(-DFORCE_METHOD_TYPE_3)
+endif()
+
+if(FORCE_METHOD_TYPE_0)
+  add_definitions(-DFORCE_METHOD_TYPE_0)
+endif()
+
+if(NOT "${TEST_VECTOR_IDX_OVERRIDE}" STREQUAL "")
+  add_definitions(-DTEST_VECTOR_IDX_OVERRIDE=${TEST_VECTOR_IDX_OVERRIDE})
+endif()
 
 if(USE_SUIT_2)
   message(STATUS "SUIT 2 enable")
@@ -119,7 +134,7 @@ if(USE_SUIT_7)
     ../externals/pqm4/crypto_sign/falcon-512/m4-ct
     ../externals/pqm4/mupq/common
     ../externals/pqm4/libopencm3/include)
-  target_compile_definitions(app PRIVATE USE_SUIT_7)
+  target_compile_definitions(app PRIVATE USE_SUIT_7 KYBER_LEVEL_1 FALCON_LEVEL_1)
 endif()
 
 if(USE_SUIT_9)
@@ -127,8 +142,8 @@ if(USE_SUIT_9)
   *.c
   # edhoc_integration_tests/*.c
   ../externals/zcbor/src/*.c
-  #../externals/compact25519/src/c25519/*.c
-  #../externals/compact25519/src/*.c
+  ../externals/compact25519/src/c25519/*.c
+  ../externals/compact25519/src/*.c
   #../externals/mbedtls/library/*.c
   ../externals/tinycrypt/lib/source/*.c
   #../test_vectors/*.c
@@ -786,8 +801,12 @@ zephyr_get_compile_options_for_lang_as_string(C options)
 
 # To provide flags with west use COMMAND_LINE_FLAGS, e.g.:
 # west build -b native_posix -- -DCOMMAND_LINE_FLAGS="-DVLA"
+#
+# run_handshake_timing_benchmark.py passes flags via EXTRA_CFLAGS, so include
+# both to ensure the external lib sees the same feature toggles as the Zephyr
+# app (e.g., HANDSHAKE_TIMING_BENCH, suite selection, etc.).
 set(external_project_cflags
-  "${COMMAND_LINE_FLAGS} ${includes} ${definitions} ${options} ${system_includes}"
+  "${COMMAND_LINE_FLAGS} ${EXTRA_CFLAGS} ${includes} ${definitions} ${options} ${system_includes}"
 )
 
 include(ExternalProject)

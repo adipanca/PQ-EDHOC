@@ -177,7 +177,16 @@ enum err msg2_gen(struct edhoc_responder_context *c, struct runtime_context *rc,
 
 	enum method_type method = INITIATOR_SK_RESPONDER_SK;
 	BYTE_ARRAY_NEW(suites_i, SUITES_I_SIZE, SUITES_I_SIZE);
+#if defined(HANDSHAKE_TIMING_BENCH)
+	/*
+	 * Timing runs exercise oversized PQ/hybrid message_1 payloads (e.g.,
+	 * SUITE_17 with g_x > 1.5 KiB). Give g_x enough headroom to avoid
+	 * buffer_to_small errors when parsing message_1.
+	 */
+	BYTE_ARRAY_NEW(g_x, MSG_MAX_SIZE, MSG_MAX_SIZE);
+#else
 	BYTE_ARRAY_NEW(g_x, G_X_SIZE_F, G_X_SIZE_F);
+#endif
 
 	TRY(msg1_parse(&rc->msg, &method, &suites_i, &g_x, c_i, &rc->ead));
 
@@ -347,6 +356,8 @@ enum err msg2_gen(struct edhoc_responder_context *c, struct runtime_context *rc,
 	TRY(ciphertext_gen(CIPHERTEXT2, &rc->suite, &c->c_r, &c->id_cred_r,
 			   &sign_or_mac_2, &c->ead_2, &PRK_2e, &th2,
 			   &ciphertext_2, &plaintext_2));
+	PRINT_ARRAY("PLAINTEXT_2", plaintext_2.ptr, plaintext_2.len);
+	PRINT_ARRAY("CIPHERTEXT_2", ciphertext_2.ptr, ciphertext_2.len);
 
 	/* Clear the message buffer. */
 	memset(rc->msg.ptr, 0, rc->msg.len);
@@ -366,33 +377,53 @@ enum err msg3_process(struct edhoc_responder_context *c,
 		      struct byte_array *prk_out,
 		      struct byte_array *initiator_pk)
 {
+#if defined(HANDSHAKE_TIMING_BENCH)
+	/* Timing runs may carry oversized hybrid/PQ fields; give generous slack. */
+	BYTE_ARRAY_NEW(ctxt3, MSG_MAX_SIZE, rc->msg.len);
+#else
 	BYTE_ARRAY_NEW(ctxt3, CIPHERTEXT3_SIZE, rc->msg.len);
+#endif
 	TRY(decode_bstr(&rc->msg, &ctxt3));
 	PRINT_ARRAY("CIPHERTEXT_3", ctxt3.ptr, ctxt3.len);
 
+#if defined(HANDSHAKE_TIMING_BENCH)
+	BYTE_ARRAY_NEW(id_cred_i, MSG_MAX_SIZE, MSG_MAX_SIZE);
+	BYTE_ARRAY_NEW(sign_or_mac, MSG_MAX_SIZE, MSG_MAX_SIZE);
+#else
 	BYTE_ARRAY_NEW(id_cred_i, ID_CRED_I_SIZE, ID_CRED_I_SIZE);
 	BYTE_ARRAY_NEW(sign_or_mac, SIG_OR_MAC_SIZE, SIG_OR_MAC_SIZE);
+#endif
 
 	PRINTF("PLAINTEXT3_SIZE: %d\n", PLAINTEXT3_SIZE);
 	PRINTF("ctxt3.len: %d\n", ctxt3.len);
 #if defined(_WIN32)
 	BYTE_ARRAY_NEW(ptxt3,
-		       PLAINTEXT3_SIZE + 16, // 16 is max aead mac length
-		       ctxt3.len);
+	       PLAINTEXT3_SIZE + 16, // 16 is max aead mac length
+	       ctxt3.len);
+#else
+#if defined(HANDSHAKE_TIMING_BENCH)
+	BYTE_ARRAY_NEW(ptxt3, MSG_MAX_SIZE, ctxt3.len);
 #else
 	BYTE_ARRAY_NEW(ptxt3,
-		       PLAINTEXT3_SIZE + get_aead_mac_len(rc->suite.edhoc_aead),
-		       ctxt3.len);
+	       PLAINTEXT3_SIZE + get_aead_mac_len(rc->suite.edhoc_aead),
+	       ctxt3.len);
+#endif
 #endif
 
 	TRY(ciphertext_decrypt_split(CIPHERTEXT3, &rc->suite, NULL, &id_cred_i,
-				     &sign_or_mac, &rc->ead, &rc->prk_3e2m,
-				     &rc->th3, &ctxt3, &ptxt3));
+			     &sign_or_mac, &rc->ead, &rc->prk_3e2m,
+			     &rc->th3, &ctxt3, &ptxt3));
 
 	/*check the authenticity of the initiator*/
+#if defined(HANDSHAKE_TIMING_BENCH)
+	BYTE_ARRAY_NEW(cred_i, MSG_MAX_SIZE, MSG_MAX_SIZE);
+	BYTE_ARRAY_NEW(pk, MSG_MAX_SIZE, MSG_MAX_SIZE);
+	BYTE_ARRAY_NEW(g_i, MSG_MAX_SIZE, MSG_MAX_SIZE);
+#else
 	BYTE_ARRAY_NEW(cred_i, CRED_I_SIZE, CRED_I_SIZE);
 	BYTE_ARRAY_NEW(pk, PK_SIZE, PK_SIZE);
 	BYTE_ARRAY_NEW(g_i, G_I_SIZE_F, G_I_SIZE_F);
+#endif
 
 	TRY(retrieve_cred(rc->static_dh_i, cred_i_array, &id_cred_i, &cred_i,
 			  &pk, &g_i));

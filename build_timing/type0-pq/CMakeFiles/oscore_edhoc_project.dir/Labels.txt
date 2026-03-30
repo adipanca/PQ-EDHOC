@@ -1,0 +1,13 @@
+# Target labels
+ oscore_edhoc_project
+# Source files and their labels
+/home/ubuntu/PQ-EDHOC/build_timing/type0-pq/CMakeFiles/oscore_edhoc_project
+/home/ubuntu/PQ-EDHOC/build_timing/type0-pq/CMakeFiles/oscore_edhoc_project.rule
+/home/ubuntu/PQ-EDHOC/build_timing/type0-pq/CMakeFiles/oscore_edhoc_project-complete.rule
+/home/ubuntu/PQ-EDHOC/build_timing/type0-pq/uoscore_uedhoc/src/oscore_edhoc_project-stamp/oscore_edhoc_project-build.rule
+/home/ubuntu/PQ-EDHOC/build_timing/type0-pq/uoscore_uedhoc/src/oscore_edhoc_project-stamp/oscore_edhoc_project-configure.rule
+/home/ubuntu/PQ-EDHOC/build_timing/type0-pq/uoscore_uedhoc/src/oscore_edhoc_project-stamp/oscore_edhoc_project-download.rule
+/home/ubuntu/PQ-EDHOC/build_timing/type0-pq/uoscore_uedhoc/src/oscore_edhoc_project-stamp/oscore_edhoc_project-install.rule
+/home/ubuntu/PQ-EDHOC/build_timing/type0-pq/uoscore_uedhoc/src/oscore_edhoc_project-stamp/oscore_edhoc_project-mkdir.rule
+/home/ubuntu/PQ-EDHOC/build_timing/type0-pq/uoscore_uedhoc/src/oscore_edhoc_project-stamp/oscore_edhoc_project-patch.rule
+/home/ubuntu/PQ-EDHOC/build_timing/type0-pq/uoscore_uedhoc/src/oscore_edhoc_project-stamp/oscore_edhoc_project-update.rule
