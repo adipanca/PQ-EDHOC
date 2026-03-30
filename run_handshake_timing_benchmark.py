@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Run Zephyr EDHOC handshake timing benchmark and write benchmark_timing.csv.
+Run Zephyr EDHOC handshake timing benchmark and write benchmarks_timing.csv.
 
 Measured components per role (ms):
 - processing
@@ -221,12 +221,12 @@ def write_csv(path: Path, rows: List[Dict[str, float]]) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Run EDHOC handshake timing benchmark and write benchmark_timing.csv")
+    parser = argparse.ArgumentParser(description="Run EDHOC handshake timing benchmark and write benchmark_timings.csv")
     parser.add_argument("--board", default="native_posix_64")
     parser.add_argument("--runs", type=int, default=5, help="Runs per variant (median used)")
     parser.add_argument("--timeout", type=int, default=20, help="Per-run timeout seconds (increase for slower PQ builds)")
     parser.add_argument("--max-attempts", type=int, default=40, help="Max process attempts per variant to gather valid initiator+responder samples")
-    parser.add_argument("--write-csv", default="benchmark_timing.csv")
+    parser.add_argument("--write-csv", default="benchmarks_timing.csv")
     parser.add_argument("--skip-pq", action="store_true", help="Skip PQ-only variants (suite 7/17)")
     parser.add_argument("--skip-hybrid", action="store_true", help="Skip hybrid variants (suite 18)")
     args = parser.parse_args()
